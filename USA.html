@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeoPuzz 2000 🗺️</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --panel: #16213e;
+    --accent: #0f3460;
+    --header-h: 70px;
+    --sidebar-w: 220px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: #fff;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── HEADER ─────────────────────────────────────────────── */
+  #header {
+    height: var(--header-h);
+    background: linear-gradient(135deg, #0f3460, #533483);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    z-index: 10;
+    position: relative;
+  }
+
+  #logo {
+    font-family: 'Fredoka One', cursive;
+    font-size: 28px;
+    letter-spacing: 1px;
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: none;
+    white-space: nowrap;
+  }
+
+  #stats {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+  }
+
+  .stat-box {
+    background: rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 17px;
+    font-weight: 800;
+    min-width: 100px;
+    justify-content: center;
+  }
+
+  .stat-icon { font-size: 20px; }
+
+  #controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .ctrl-btn {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    white-space: nowrap;
+  }
+
+  .ctrl-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .ctrl-btn:active { transform: translateY(0); }
+
+  #btn-names  { background: linear-gradient(135deg, #11998e, #38ef7d); color: #fff; }
+  #btn-zoom-in, #btn-zoom-out { background: rgba(255,255,255,0.15); color: #fff; font-size: 18px; padding: 6px 13px; }
+  #btn-reset  { background: rgba(255,255,255,0.1); color: #ccc; font-size: 13px; }
+  #btn-new    { background: linear-gradient(135deg, #f7971e, #ffd200); color: #333; }
+
+  /* ── MAIN LAYOUT ─────────────────────────────────────────── */
+  #main {
+    display: flex;
+    height: calc(100vh - var(--header-h));
+  }
+
+  /* ── SIDEBAR ─────────────────────────────────────────────── */
+  #sidebar {
+    width: var(--sidebar-w);
+    background: var(--panel);
+    border-right: 2px solid rgba(255,255,255,0.07);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #sidebar-header {
+    padding: 12px 14px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+
+  #sidebar-title {
+    font-family: 'Fredoka One', cursive;
+    font-size: 17px;
+    color: #f7971e;
+    margin-bottom: 4px;
+  }
+
+  #progress-bar-wrap {
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    height: 8px;
+    overflow: hidden;
+  }
+
+  #progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #11998e, #38ef7d);
+    border-radius: 8px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  #progress-text {
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 3px;
+    text-align: right;
+  }
+
+  #pieces-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  #pieces-list::-webkit-scrollbar { width: 5px; }
+  #pieces-list::-webkit-scrollbar-track { background: transparent; }
+  #pieces-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+  .piece-card {
+    border-radius: 10px;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: grab;
+    transition: transform 0.12s, box-shadow 0.12s, opacity 0.3s;
+    border: 2px solid rgba(255,255,255,0.15);
+    position: relative;
+  }
+
+  .piece-card:hover {
+    transform: translateX(3px) scale(1.02);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    border-color: rgba(255,255,255,0.4);
+  }
+
+  .piece-card:active { cursor: grabbing; }
+
+  .piece-card.placed {
+    opacity: 0.3;
+    pointer-events: none;
+    cursor: default;
+  }
+
+  .piece-card.placed::after {
+    content: '✓';
+    position: absolute;
+    right: 8px;
+    font-size: 16px;
+    color: #38ef7d;
+    font-weight: 900;
+  }
+
+  .piece-svg-wrap {
+    width: 44px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .piece-svg-wrap svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .piece-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+    flex: 1;
+  }
+
+  /* ── MAP AREA ────────────────────────────────────────────── */
+  #map-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center, #1e3a5f 0%, #0d1b2a 100%);
+  }
+
+  #map-svg {
+    width: 100%;
+    height: 100%;
+    cursor: default;
+  }
+
+  /* State paths */
+  .state-target {
+    fill: rgba(255,255,255,0.04);
+    stroke: rgba(255,255,255,0.18);
+    stroke-width: 0.8;
+    transition: fill 0.3s;
+  }
+
+  .state-target.hovered {
+    fill: rgba(255,255,255,0.1);
+    stroke: rgba(255,255,255,0.5);
+  }
+
+  .state-placed {
+    stroke: rgba(255,255,255,0.6);
+    stroke-width: 1;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .state-placed.visible {
+    opacity: 1;
+  }
+
+  .state-label {
+    font-family: 'Nunito', sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    fill: #ffffff;
+    stroke: rgba(0,0,0,0.7);
+    stroke-width: 2.5px;
+    paint-order: stroke fill;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .state-label.show { opacity: 1; }
+
+  /* ── DRAG GHOST ──────────────────────────────────────────── */
+  #drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    display: none;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0 6px 16px rgba(0,0,0,0.6));
+  }
+
+  /* ── SPARKLE OVERLAY ─────────────────────────────────────── */
+  .sparkle {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9998;
+    font-size: 24px;
+    animation: sparkle-fly 0.9s ease-out forwards;
+  }
+
+  @keyframes sparkle-fly {
+    0%   { opacity: 1; transform: translate(0,0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.3); }
+  }
+
+  /* ── WIN SCREEN ──────────────────────────────────────────── */
+  #win-screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,30,0.85);
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+    backdrop-filter: blur(6px);
+  }
+
+  #win-screen.show { display: flex; }
+
+  #win-box {
+    background: linear-gradient(135deg, #0f3460, #533483);
+    border-radius: 24px;
+    padding: 48px 60px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    border: 2px solid rgba(255,255,255,0.15);
+    max-width: 420px;
+    width: 90%;
+    animation: pop-in 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
+  }
+
+  @keyframes pop-in {
+    0%   { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+
+  #win-emoji { font-size: 64px; margin-bottom: 8px; }
+  #win-title {
+    font-family: 'Fredoka One', cursive;
+    font-size: 42px;
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+
+  #win-stats {
+    font-size: 18px;
+    color: #ccc;
+    margin-bottom: 24px;
+    line-height: 1.7;
+  }
+
+  #win-play-again {
+    font-family: 'Fredoka One', cursive;
+    font-size: 22px;
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    color: #333;
+    border: none;
+    border-radius: 14px;
+    padding: 14px 40px;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+
+  #win-play-again:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 24px rgba(247,151,30,0.5);
+  }
+
+  /* ── HINT PULSE ──────────────────────────────────────────── */
+  @keyframes hint-pulse {
+    0%, 100% { stroke: #ffd200; stroke-width: 2; fill: rgba(255,210,0,0.15); }
+    50%       { stroke: #ffd200; stroke-width: 4; fill: rgba(255,210,0,0.3); }
+  }
+  .state-target.hint-pulse { animation: hint-pulse 0.5s ease-in-out 3; }
+
+  /* ── TOOLTIP ─────────────────────────────────────────────── */
+  #tooltip {
+    position: fixed;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    pointer-events: none;
+    z-index: 8000;
+    display: none;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  /* ── BOUNCING BACK ANIMATION ─────────────────────────────── */
+  @keyframes bounce-back {
+    0%   { transform: translate(-50%,-50%) scale(1); }
+    30%  { transform: translate(-50%,-50%) scale(1.1) rotate(-5deg); }
+    60%  { transform: translate(-50%,-50%) scale(0.9) rotate(5deg); }
+    100% { transform: translate(-50%,-50%) scale(1); }
+  }
+
+  .ghost-bounce { animation: bounce-back 0.35s ease-out; }
+
+  /* ── SHAKE ANIMATION for wrong drop ─────────────────────── */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%  { transform: translateX(-6px); }
+    40%  { transform: translateX(6px); }
+    60%  { transform: translateX(-4px); }
+    80%  { transform: translateX(4px); }
+  }
+
+  .shake { animation: shake 0.4s ease-out; }
+
+  /* ── DECORATIVE GRID ─────────────────────────────────────── */
+  #map-grid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* ── ZOOM HINT ───────────────────────────────────────────── */
+  #zoom-hint {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    color: rgba(255,255,255,0.3);
+    font-size: 11px;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="logo">🗺️ GeoPuzz 2000</div>
+
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-names">👁 Show Names</button>
+    <button class="ctrl-btn" id="btn-zoom-in">＋</button>
+    <button class="ctrl-btn" id="btn-zoom-out">－</button>
+    <button class="ctrl-btn" id="btn-reset">⌖ Reset View</button>
+    <button class="ctrl-btn" id="btn-new">🔄 New Game</button>
+  </div>
+
+  <div id="stats">
+    <div class="stat-box"><span class="stat-icon">⭐</span><span id="score-val">0</span><span style="color:#aaa;font-size:13px">&nbsp;/ 50</span></div>
+    <div class="stat-box"><span class="stat-icon">⏱️</span><span id="timer-val">0:00</span></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <div id="sidebar-title">🧩 Puzzle Pieces</div>
+      <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+      <div id="progress-text">0 of 50 placed</div>
+    </div>
+    <div id="pieces-list"></div>
+  </div>
+
+  <!-- MAP -->
+  <div id="map-wrap">
+    <div id="map-grid"></div>
+    <svg id="map-svg">
+      <g id="map-group">
+        <g id="targets-group"></g>
+        <g id="placed-group"></g>
+        <g id="labels-group"></g>
+      </g>
+    </svg>
+    <div id="zoom-hint">Scroll to zoom · Drag map to pan</div>
+  </div>
+</div>
+
+<!-- DRAG GHOST -->
+<div id="drag-ghost"></div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+
+<!-- WIN SCREEN -->
+<div id="win-screen">
+  <div id="win-box">
+    <div id="win-emoji">🏆</div>
+    <div id="win-title">You Did It!</div>
+    <div id="win-stats"></div>
+    <button id="win-play-again">Play Again! 🎉</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+//  CONSTANTS & CONFIG
+// ═══════════════════════════════════════════════════════════
+const STATE_NAMES = {
+  "01":"Alabama","02":"Alaska","04":"Arizona","05":"Arkansas",
+  "06":"California","08":"Colorado","09":"Connecticut","10":"Delaware",
+  "12":"Florida","13":"Georgia","15":"Hawaii","16":"Idaho",
+  "17":"Illinois","18":"Indiana","19":"Iowa","20":"Kansas",
+  "21":"Kentucky","22":"Louisiana","23":"Maine","24":"Maryland",
+  "25":"Massachusetts","26":"Michigan","27":"Minnesota","28":"Mississippi",
+  "29":"Missouri","30":"Montana","31":"Nebraska","32":"Nevada",
+  "33":"New Hampshire","34":"New Jersey","35":"New Mexico","36":"New York",
+  "37":"North Carolina","38":"North Dakota","39":"Ohio","40":"Oklahoma",
+  "41":"Oregon","42":"Pennsylvania","44":"Rhode Island","45":"South Carolina",
+  "46":"South Dakota","47":"Tennessee","48":"Texas","49":"Utah",
+  "50":"Vermont","51":"Virginia","53":"Washington","54":"West Virginia",
+  "55":"Wisconsin","56":"Wyoming"
+};
+
+const STATE_ABBR = {
+  "01":"AL","02":"AK","04":"AZ","05":"AR","06":"CA","08":"CO","09":"CT","10":"DE",
+  "12":"FL","13":"GA","15":"HI","16":"ID","17":"IL","18":"IN","19":"IA","20":"KS",
+  "21":"KY","22":"LA","23":"ME","24":"MD","25":"MA","26":"MI","27":"MN","28":"MS",
+  "29":"MO","30":"MT","31":"NE","32":"NV","33":"NH","34":"NJ","35":"NM","36":"NY",
+  "37":"NC","38":"ND","39":"OH","40":"OK","41":"OR","42":"PA","44":"RI","45":"SC",
+  "46":"SD","47":"TN","48":"TX","49":"UT","50":"VT","51":"VA","53":"WA","54":"WV",
+  "55":"WI","56":"WY"
+};
+
+// Vibrant palette for state pieces
+const PALETTE = [
+  "#e74c3c","#e67e22","#f1c40f","#2ecc71","#1abc9c",
+  "#3498db","#9b59b6","#e91e8c","#00bcd4","#ff5722",
+  "#8bc34a","#ff9800","#673ab7","#f06292","#26c6da",
+  "#ef5350","#66bb6a","#42a5f5","#ab47bc","#ffca28"
+];
+
+// Emojis for sparkle effect
+const SPARKLES = ['⭐','✨','🌟','💫','🎉','🎊','🏅'];
+
+// Small state tolerance overrides (px in map coords)
+const SMALL_STATES = new Set(["09","10","24","25","33","34","44","50"]);
+
+// ═══════════════════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════════════════
+let stateData = {};         // id → { path, centroid, bounds, color, name, abbr }
+let placedStates = new Set();
+let showNames = false;
+let score = 0;
+let timerSec = 0;
+let timerInterval = null;
+let timerRunning = false;
+let currentTransform = d3.zoomIdentity;
+let dragging = null;        // { stateId, ghostEl, startCard }
+let colorMap = {};          // id → color
+
+// ═══════════════════════════════════════════════════════════
+//  AUDIO (Web Audio API – simple sound effects)
+// ═══════════════════════════════════════════════════════════
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freqs, type = 'sine', duration = 0.12, vol = 0.2) {
+  try {
+    const ctx = getAudio();
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, ctx.currentTime + i * duration);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * duration + duration);
+      osc.start(ctx.currentTime + i * duration);
+      osc.stop(ctx.currentTime + i * duration + duration + 0.05);
+    });
+  } catch(e) {}
+}
+
+function soundCorrect() { playTone([523, 659, 784], 'sine', 0.13, 0.18); }
+function soundWrong()   { playTone([220, 196], 'sawtooth', 0.1, 0.1); }
+function soundWin()     { playTone([523,587,659,784,1047], 'sine', 0.14, 0.2); }
+
+// ═══════════════════════════════════════════════════════════
+//  TIMER
+// ═══════════════════════════════════════════════════════════
+function startTimer() {
+  if (timerRunning) return;
+  timerRunning = true;
+  timerInterval = setInterval(() => {
+    timerSec++;
+    updateTimerDisplay();
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+}
+
+function resetTimer() {
+  stopTimer();
+  timerSec = 0;
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timerSec / 60);
+  const s = timerSec % 60;
+  document.getElementById('timer-val').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SCORE
+// ═══════════════════════════════════════════════════════════
+function updateScore() {
+  document.getElementById('score-val').textContent = score;
+  const pct = (score / 50) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = `${score} of 50 placed`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SPARKLE EFFECT
+// ═══════════════════════════════════════════════════════════
+function spawnSparkles(x, y) {
+  for (let i = 0; i < 8; i++) {
+    const el = document.createElement('div');
+    el.className = 'sparkle';
+    el.textContent = SPARKLES[Math.floor(Math.random() * SPARKLES.length)];
+    const angle = (Math.PI * 2 / 8) * i + (Math.random() - 0.5) * 0.5;
+    const dist = 60 + Math.random() * 60;
+    const tx = Math.cos(angle) * dist;
+    const ty = Math.sin(angle) * dist;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.setProperty('--tx', tx + 'px');
+    el.style.setProperty('--ty', ty + 'px');
+    el.style.animationDelay = (Math.random() * 0.1) + 's';
+    document.body.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAP INITIALIZATION
+// ═══════════════════════════════════════════════════════════
+const svg = d3.select('#map-svg');
+const mapGroup = svg.select('#map-group');
+const targetsGroup = svg.select('#targets-group');
+const placedGroup = svg.select('#placed-group');
+const labelsGroup = svg.select('#labels-group');
+
+const zoom = d3.zoom()
+  .scaleExtent([0.4, 10])
+  .on('zoom', (event) => {
+    currentTransform = event.transform;
+    mapGroup.attr('transform', event.transform);
+  });
+
+svg.call(zoom);
+
+function getMapDimensions() {
+  const wrap = document.getElementById('map-wrap');
+  return { w: wrap.clientWidth, h: wrap.clientHeight };
+}
+
+let pathGenerator;
+
+function initMap(us) {
+  const { w, h } = getMapDimensions();
+
+  const projection = d3.geoAlbersUsa()
+    .scale(Math.min(w, h) * 1.2)
+    .translate([w / 2, h / 2]);
+
+  pathGenerator = d3.geoPath().projection(projection);
+
+  const features = topojson.feature(us, us.objects.states).features
+    .filter(f => STATE_NAMES[String(f.id).padStart(2,'0')]);
+
+  // Assign colors (shuffled)
+  const ids = features.map(f => String(f.id).padStart(2,'0'));
+  const shuffled = [...PALETTE, ...PALETTE, ...PALETTE].slice(0, ids.length);
+  // Fisher-Yates shuffle for color assignment
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  ids.forEach((id, i) => colorMap[id] = shuffled[i % PALETTE.length]);
+
+  features.forEach(feature => {
+    const id = String(feature.id).padStart(2,'0');
+    const d = pathGenerator(feature);
+    const centroid = pathGenerator.centroid(feature);
+    const bounds = pathGenerator.bounds(feature);
+
+    if (!d || isNaN(centroid[0])) return; // Skip if projection returns null
+
+    stateData[id] = {
+      id, d, centroid, bounds,
+      name: STATE_NAMES[id],
+      abbr: STATE_ABBR[id],
+      color: colorMap[id],
+      feature
+    };
+
+    // Ghost target on map
+    targetsGroup.append('path')
+      .attr('class', 'state-target')
+      .attr('id', `target-${id}`)
+      .attr('d', d)
+      .datum({ id });
+
+    // Placed (colored) path – starts invisible
+    placedGroup.append('path')
+      .attr('class', 'state-placed')
+      .attr('id', `placed-${id}`)
+      .attr('d', d)
+      .attr('fill', stateData[id].color);
+
+    // Label
+    labelsGroup.append('text')
+      .attr('class', 'state-label')
+      .attr('id', `label-${id}`)
+      .attr('x', centroid[0])
+      .attr('y', centroid[1])
+      .text(STATE_ABBR[id]);
+  });
+
+  buildSidebar(features);
+  updateScore();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SIDEBAR
+// ═══════════════════════════════════════════════════════════
+function buildSidebar(features) {
+  const list = document.getElementById('pieces-list');
+  list.innerHTML = '';
+
+  // Sort alphabetically
+  const sorted = [...features]
+    .filter(f => stateData[String(f.id).padStart(2,'0')])
+    .sort((a, b) => {
+      const na = STATE_NAMES[String(a.id).padStart(2,'0')] || '';
+      const nb = STATE_NAMES[String(b.id).padStart(2,'0')] || '';
+      return na.localeCompare(nb);
+    });
+
+  sorted.forEach(feature => {
+    const id = String(feature.id).padStart(2,'0');
+    const data = stateData[id];
+    if (!data) return;
+
+    // Build mini SVG for the piece
+    const [[x0,y0],[x1,y1]] = data.bounds;
+    const bw = x1 - x0 || 1;
+    const bh = y1 - y0 || 1;
+    const pad = Math.max(bw, bh) * 0.1;
+
+    const card = document.createElement('div');
+    card.className = 'piece-card';
+    card.id = `card-${id}`;
+    card.style.background = `linear-gradient(135deg, ${data.color}22, ${data.color}44)`;
+    card.style.borderColor = data.color + '66';
+    card.dataset.stateId = id;
+
+    const svgWrap = document.createElement('div');
+    svgWrap.className = 'piece-svg-wrap';
+
+    const miniSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    miniSvg.setAttribute('viewBox', `${x0-pad} ${y0-pad} ${bw+pad*2} ${bh+pad*2}`);
+    miniSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    const miniPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    miniPath.setAttribute('d', data.d);
+    miniPath.setAttribute('fill', data.color);
+    miniPath.setAttribute('stroke', 'rgba(255,255,255,0.5)');
+    miniPath.setAttribute('stroke-width', Math.max(bw, bh) * 0.04);
+    miniSvg.appendChild(miniPath);
+    svgWrap.appendChild(miniSvg);
+
+    const label = document.createElement('div');
+    label.className = 'piece-label';
+    label.textContent = data.name;
+
+    card.appendChild(svgWrap);
+    card.appendChild(label);
+    list.appendChild(card);
+
+    // Drag events
+    card.addEventListener('mousedown', (e) => onPieceMouseDown(e, id));
+    card.addEventListener('touchstart', (e) => onPieceTouchStart(e, id), { passive: false });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRAG & DROP – MOUSE
+// ═══════════════════════════════════════════════════════════
+function onPieceMouseDown(e, id) {
+  if (placedStates.has(id)) return;
+  e.preventDefault();
+  startDrag(id, e.clientX, e.clientY);
+}
+
+function startDrag(id, clientX, clientY) {
+  if (!timerRunning && score === 0) startTimer();
+
+  const data = stateData[id];
+  if (!data) return;
+
+  dragging = { id };
+
+  const ghost = document.getElementById('drag-ghost');
+  const [[x0,y0],[x1,y1]] = data.bounds;
+  const bw = x1 - x0 || 1;
+  const bh = y1 - y0 || 1;
+  const pad = Math.max(bw, bh) * 0.1;
+
+  // Scale ghost to reasonable on-screen size
+  const maxDim = 110;
+  const scaleFactor = maxDim / Math.max(bw, bh);
+  const gw = (bw + pad*2) * scaleFactor;
+  const gh = (bh + pad*2) * scaleFactor;
+
+  ghost.innerHTML = `
+    <svg width="${gw}" height="${gh}"
+         viewBox="${x0-pad} ${y0-pad} ${bw+pad*2} ${bh+pad*2}"
+         style="overflow:visible">
+      <path d="${data.d}" fill="${data.color}" stroke="rgba(255,255,255,0.8)" stroke-width="${Math.max(bw,bh)*0.03}" />
+    </svg>`;
+  ghost.style.display = 'block';
+  ghost.style.left = clientX + 'px';
+  ghost.style.top = clientY + 'px';
+
+  document.getElementById(`card-${id}`).style.opacity = '0.4';
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  const ghost = document.getElementById('drag-ghost');
+  ghost.style.left = e.clientX + 'px';
+  ghost.style.top  = e.clientY + 'px';
+
+  // Highlight nearest target
+  highlightNearTarget(e.clientX, e.clientY);
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (!dragging) return;
+  endDrag(e.clientX, e.clientY);
+});
+
+// ═══════════════════════════════════════════════════════════
+//  DRAG & DROP – TOUCH
+// ═══════════════════════════════════════════════════════════
+function onPieceTouchStart(e, id) {
+  if (placedStates.has(id)) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  startDrag(id, touch.clientX, touch.clientY);
+}
+
+document.addEventListener('touchmove', (e) => {
+  if (!dragging) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const ghost = document.getElementById('drag-ghost');
+  ghost.style.left = touch.clientX + 'px';
+  ghost.style.top  = touch.clientY + 'px';
+  highlightNearTarget(touch.clientX, touch.clientY);
+}, { passive: false });
+
+document.addEventListener('touchend', (e) => {
+  if (!dragging) return;
+  const touch = e.changedTouches[0];
+  endDrag(touch.clientX, touch.clientY);
+});
+
+// ═══════════════════════════════════════════════════════════
+//  HIGHLIGHT NEAREST TARGET
+// ═══════════════════════════════════════════════════════════
+function screenToMap(sx, sy) {
+  const svgEl = document.getElementById('map-svg');
+  const rect = svgEl.getBoundingClientRect();
+  const mx = (sx - rect.left - currentTransform.x) / currentTransform.k;
+  const my = (sy - rect.top  - currentTransform.y) / currentTransform.k;
+  return [mx, my];
+}
+
+function highlightNearTarget(sx, sy) {
+  const [mx, my] = screenToMap(sx, sy);
+  let nearest = null, nearestDist = Infinity;
+
+  Object.values(stateData).forEach(data => {
+    if (placedStates.has(data.id)) return;
+    const dx = mx - data.centroid[0];
+    const dy = my - data.centroid[1];
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < nearestDist) { nearestDist = dist; nearest = data.id; }
+  });
+
+  // Clear previous highlights
+  document.querySelectorAll('.state-target.hovered').forEach(el => el.classList.remove('hovered'));
+
+  // Tolerance: ~150px map coords to show highlight
+  if (nearest && nearestDist < 150 / currentTransform.k) {
+    const el = document.getElementById(`target-${nearest}`);
+    if (el) el.classList.add('hovered');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  END DRAG
+// ═══════════════════════════════════════════════════════════
+function endDrag(sx, sy) {
+  if (!dragging) return;
+  const id = dragging.id;
+  dragging = null;
+
+  document.querySelectorAll('.state-target.hovered').forEach(el => el.classList.remove('hovered'));
+
+  const ghost = document.getElementById('drag-ghost');
+  const [mx, my] = screenToMap(sx, sy);
+  const data = stateData[id];
+
+  const dx = mx - data.centroid[0];
+  const dy = my - data.centroid[1];
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  // Tolerance: smaller for large states, bigger for tiny ones
+  const [[x0,y0],[x1,y1]] = data.bounds;
+  const stateSize = Math.max(x1-x0, y1-y0);
+  let tolerance = Math.max(40, stateSize * 0.35);
+  if (SMALL_STATES.has(id)) tolerance = Math.max(tolerance, 60);
+  // Also scale tolerance inversely with zoom (so it's easier when zoomed in)
+  tolerance = tolerance / Math.sqrt(currentTransform.k);
+
+  if (dist <= tolerance) {
+    // ── CORRECT PLACEMENT ──
+    ghost.style.display = 'none';
+    const cardEl = document.getElementById(`card-${id}`);
+    cardEl.style.opacity = ''; // Remove inline opacity; CSS class will handle it
+    placeState(id, sx, sy);
+  } else {
+    // ── WRONG PLACEMENT: bounce back ──
+    soundWrong();
+    ghost.classList.add('ghost-bounce');
+    ghost.addEventListener('animationend', () => {
+      ghost.style.display = 'none';
+      ghost.classList.remove('ghost-bounce');
+      document.getElementById(`card-${id}`).style.opacity = '';
+    }, { once: true });
+
+    // Shake the card
+    const card = document.getElementById(`card-${id}`);
+    card.classList.add('shake');
+    card.addEventListener('animationend', () => card.classList.remove('shake'), { once: true });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PLACE STATE (correct!)
+// ═══════════════════════════════════════════════════════════
+function placeState(id, sx, sy) {
+  placedStates.add(id);
+  score++;
+
+  // Show colored placed path
+  const placedPath = document.getElementById(`placed-${id}`);
+  if (placedPath) placedPath.classList.add('visible');
+
+  // Mark card as placed
+  const card = document.getElementById(`card-${id}`);
+  if (card) card.classList.add('placed');
+
+  // Show label if names are on
+  const label = document.getElementById(`label-${id}`);
+  if (label && showNames) label.classList.add('show');
+
+  soundCorrect();
+  if (sx !== undefined && sy !== undefined) spawnSparkles(sx, sy);
+  updateScore();
+
+  if (score === 50) {
+    setTimeout(showWinScreen, 600);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  WIN SCREEN
+// ═══════════════════════════════════════════════════════════
+function showWinScreen() {
+  stopTimer();
+  soundWin();
+  setTimeout(soundWin, 500);
+
+  const m = Math.floor(timerSec / 60);
+  const s = timerSec % 60;
+  const timeStr = `${m} min ${s} sec`;
+
+  let rating = '⭐⭐⭐';
+  let msg = 'Geography genius! 🧠';
+  if (timerSec > 600) { rating = '⭐'; msg = 'Great job finishing!'; }
+  else if (timerSec > 300) { rating = '⭐⭐'; msg = 'Nice work! Keep practicing!'; }
+
+  document.getElementById('win-stats').innerHTML =
+    `${rating}<br>You placed all 50 states!<br>Time: <strong>${timeStr}</strong>`;
+
+  // Big sparkle party
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      spawnSparkles(
+        window.innerWidth * (0.2 + Math.random() * 0.6),
+        window.innerHeight * (0.2 + Math.random() * 0.6)
+      );
+    }, i * 200);
+  }
+
+  document.getElementById('win-screen').classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TOGGLE NAMES
+// ═══════════════════════════════════════════════════════════
+document.getElementById('btn-names').addEventListener('click', () => {
+  showNames = !showNames;
+  const btn = document.getElementById('btn-names');
+  btn.textContent = showNames ? '👁 Hide Names' : '👁 Show Names';
+
+  // Only show labels for states that have already been placed
+  placedStates.forEach(id => {
+    const label = document.getElementById(`label-${id}`);
+    if (label) {
+      if (showNames) label.classList.add('show');
+      else label.classList.remove('show');
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  ZOOM CONTROLS
+// ═══════════════════════════════════════════════════════════
+document.getElementById('btn-zoom-in').addEventListener('click', () => {
+  svg.transition().duration(300).call(zoom.scaleBy, 1.5);
+});
+
+document.getElementById('btn-zoom-out').addEventListener('click', () => {
+  svg.transition().duration(300).call(zoom.scaleBy, 0.67);
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+});
+
+// ═══════════════════════════════════════════════════════════
+//  NEW GAME
+// ═══════════════════════════════════════════════════════════
+function newGame() {
+  placedStates.clear();
+  score = 0;
+  showNames = false;
+  document.getElementById('btn-names').textContent = '👁 Show Names';
+  document.getElementById('win-screen').classList.remove('show');
+  resetTimer();
+
+  // Reset all visual state
+  document.querySelectorAll('.state-placed').forEach(el => el.classList.remove('visible'));
+  document.querySelectorAll('.state-label').forEach(el => el.classList.remove('show'));
+  document.querySelectorAll('.piece-card').forEach(el => {
+    el.classList.remove('placed');
+    el.style.opacity = '1';
+  });
+
+  svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+  updateScore();
+}
+
+document.getElementById('btn-new').addEventListener('click', newGame);
+document.getElementById('win-play-again').addEventListener('click', newGame);
+
+// ═══════════════════════════════════════════════════════════
+//  LOAD MAP DATA
+// ═══════════════════════════════════════════════════════════
+d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(us => {
+  initMap(us);
+}).catch(err => {
+  console.error('Failed to load map data:', err);
+  document.getElementById('map-wrap').insertAdjacentHTML('beforeend',
+    `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f00;font-size:18px;text-align:center;padding:20px;">
+      ⚠️ Could not load map data.<br>Please check your internet connection and refresh.
+    </div>`
+  );
+});
+
+// ═══════════════════════════════════════════════════════════
+//  HANDLE WINDOW RESIZE
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('resize', () => {
+  // Re-initialize map on large resize
+  // (simplification: just reset view)
+  svg.call(zoom.transform, d3.zoomIdentity);
+});
+
+// ═══════════════════════════════════════════════════════════
+//  PREVENT CONTEXT MENU DURING DRAG
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('contextmenu', e => {
+  if (dragging) e.preventDefault();
+});
+</script>
+</body>
+</html>
