@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Soar the States — USA 250 Eagle Adventure</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; background:#0a1a3a; font-family:"Trebuchet MS","Segoe UI",sans-serif; }
+  #wrap { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* Start screen */
+  #start {
+    position:fixed; inset:0; z-index:50; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; color:#fff;
+    background:radial-gradient(circle at 50% 30%, #2b4d8f 0%, #0a1a3a 70%);
+    padding:24px;
+  }
+  #start h1 { font-size:clamp(28px,6vw,64px); letter-spacing:1px; text-shadow:0 3px 0 #b22234, 0 0 24px #ffd86b; }
+  #start h1 .star { color:#ffd86b; }
+  #start p { font-size:clamp(15px,2.4vw,22px); max-width:640px; margin:18px 0; line-height:1.5; color:#dbe6ff; }
+  #start .keys { font-size:clamp(13px,2vw,18px); color:#aac4ff; margin-bottom:26px; }
+  #start .keys b { color:#ffd86b; }
+  #playBtn {
+    font-family:inherit; font-size:clamp(20px,3vw,30px); font-weight:bold; color:#0a1a3a;
+    background:linear-gradient(#ffe7a0,#ffce4d); border:4px solid #fff; border-radius:60px;
+    padding:16px 46px; cursor:pointer; box-shadow:0 8px 28px rgba(255,206,77,.5);
+    transition:transform .12s;
+  }
+  #playBtn:hover { transform:scale(1.06); }
+  #flag { font-size:clamp(40px,9vw,90px); margin-bottom:10px; animation:bob 2.4s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+
+  /* HUD */
+  #hud {
+    position:fixed; top:0; left:0; right:0; z-index:20; display:none;
+    justify-content:space-between; align-items:flex-start; padding:14px 18px;
+    pointer-events:none; color:#fff;
+  }
+  .panel {
+    background:rgba(10,26,58,.72); border:2px solid rgba(255,216,107,.55); border-radius:14px;
+    padding:8px 14px; backdrop-filter:blur(4px); pointer-events:auto;
+  }
+  #score { font-size:clamp(15px,2.4vw,22px); font-weight:bold; }
+  #score .num { color:#ffd86b; }
+  #score small { display:block; font-weight:normal; color:#bcd0ff; font-size:.7em; }
+  #muteBtn {
+    font-family:inherit; font-size:18px; cursor:pointer; background:none; border:none; color:#fff;
+  }
+  /* City banner */
+  #banner {
+    position:fixed; top:18%; left:50%; transform:translateX(-50%) scale(.6);
+    z-index:25; text-align:center; color:#fff; opacity:0; pointer-events:none;
+    transition:opacity .25s, transform .25s;
+  }
+  #banner.show { opacity:1; transform:translateX(-50%) scale(1); }
+  #banner .city { font-size:clamp(30px,7vw,68px); font-weight:bold; text-shadow:0 0 18px #ffd86b, 0 3px 0 #b22234; }
+  #banner .state { font-size:clamp(16px,3vw,28px); color:#ffe7a0; letter-spacing:2px; }
+  #banner .new { font-size:clamp(13px,2vw,18px); color:#9dffa6; font-weight:bold; }
+
+  /* Joystick (touch) */
+  #stick { position:fixed; z-index:22; display:none; }
+  #stick .base { width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,.12); border:2px solid rgba(255,255,255,.3); }
+  #stick .knob { position:absolute; width:54px; height:54px; left:33px; top:33px; border-radius:50%; background:rgba(255,216,107,.85); }
+
+  #hint { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); z-index:20;
+    color:#cfe0ff; font-size:14px; background:rgba(10,26,58,.6); padding:6px 16px; border-radius:20px;
+    display:none; }
+  @media (max-width:760px){ #hint{display:none!important;} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+</div>
+
+<div id="hud">
+  <div class="panel" id="score">
+    Capitals visited: <span class="num" id="visited">0</span>/50
+    <small id="nearest">Find a glowing capital city!</small>
+  </div>
+  <div class="panel">
+    <button id="muteBtn" title="Sound on/off">🔊</button>
+  </div>
+</div>
+
+<div id="banner">
+  <div class="new" id="bnew"></div>
+  <div class="city" id="bcity"></div>
+  <div class="state" id="bstate"></div>
+</div>
+
+<div id="stick">
+  <div class="base"></div>
+  <div class="knob" id="knob"></div>
+</div>
+
+<div id="hint">Arrow keys / WASD to fly &nbsp;•&nbsp; Hold Shift to flap faster &nbsp;•&nbsp; Visit all 50 capitals!</div>
+
+<div id="start">
+  <div id="flag">🦅🇺🇸</div>
+  <h1>Soar the <span class="star">States</span></h1>
+  <p>Fly across America on the back of a bald eagle to celebrate the country's <b>250th birthday</b>! Glide over all fifty state capitals — when you reach one, <b>fireworks light up the sky!</b></p>
+  <div class="keys">Steer with the <b>arrow keys</b> or <b>WASD</b>. On a phone, drag the <b>joystick</b>.</div>
+  <button id="playBtn">🦅 Take Flight!</button>
+</div>
+
+<!-- Map data libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+
+<script>
+/* ============================================================
+   Soar the States — USA 250 Eagle Adventure
+   Single-file interactive map. Map shapes via d3 + us-atlas.
+   All audio synthesized live with the Web Audio API.
+   ============================================================ */
+
+// ---------- State capitals (lat, lon) ----------
+const CAPITALS = [
+  ["Montgomery","Alabama",32.377,-86.300],["Juneau","Alaska",58.302,-134.420],
+  ["Phoenix","Arizona",33.448,-112.097],["Little Rock","Arkansas",34.746,-92.289],
+  ["Sacramento","California",38.576,-121.493],["Denver","Colorado",39.739,-104.984],
+  ["Hartford","Connecticut",41.764,-72.682],["Dover","Delaware",39.158,-75.524],
+  ["Tallahassee","Florida",30.438,-84.281],["Atlanta","Georgia",33.749,-84.388],
+  ["Honolulu","Hawaii",21.307,-157.858],["Boise","Idaho",43.617,-116.199],
+  ["Springfield","Illinois",39.798,-89.654],["Indianapolis","Indiana",39.768,-86.158],
+  ["Des Moines","Iowa",41.591,-93.604],["Topeka","Kansas",39.048,-95.678],
+  ["Frankfort","Kentucky",38.197,-84.863],["Baton Rouge","Louisiana",30.457,-91.187],
+  ["Augusta","Maine",44.307,-69.782],["Annapolis","Maryland",38.979,-76.492],
+  ["Boston","Massachusetts",42.358,-71.064],["Lansing","Michigan",42.733,-84.556],
+  ["St. Paul","Minnesota",44.954,-93.090],["Jackson","Mississippi",32.299,-90.185],
+  ["Jefferson City","Missouri",38.579,-92.173],["Helena","Montana",46.586,-112.018],
+  ["Lincoln","Nebraska",40.808,-96.700],["Carson City","Nevada",39.164,-119.766],
+  ["Concord","New Hampshire",43.207,-71.538],["Trenton","New Jersey",40.220,-74.770],
+  ["Santa Fe","New Mexico",35.687,-105.938],["Albany","New York",42.652,-73.757],
+  ["Raleigh","North Carolina",35.780,-78.639],["Bismarck","North Dakota",46.808,-100.784],
+  ["Columbus","Ohio",39.961,-82.999],["Oklahoma City","Oklahoma",35.467,-97.516],
+  ["Salem","Oregon",44.939,-123.030],["Harrisburg","Pennsylvania",40.264,-76.883],
+  ["Providence","Rhode Island",41.831,-71.415],["Columbia","South Carolina",34.000,-81.035],
+  ["Pierre","South Dakota",44.368,-100.351],["Nashville","Tennessee",36.163,-86.781],
+  ["Austin","Texas",30.267,-97.743],["Salt Lake City","Utah",40.761,-111.891],
+  ["Montpelier","Vermont",44.260,-72.575],["Richmond","Virginia",37.541,-77.436],
+  ["Olympia","Washington",47.038,-122.901],["Charleston","West Virginia",38.336,-81.612],
+  ["Madison","Wisconsin",43.073,-89.401],["Cheyenne","Wyoming",41.140,-104.802]
+];
+
+// ---------- World dimensions (the full projected map) ----------
+const WORLD_W = 2200, WORLD_H = 1380;
+let projection = null, pathGen = null;
+const hasD3 = (typeof d3 !== "undefined" && d3.geoAlbersUsa);
+
+// Self-contained Albers (equal-area conic) fallback so the app ALWAYS runs,
+// even if the map CDN is unavailable. Distances stay proportional.
+function fallbackProject(){
+  const D2R=Math.PI/180;
+  const phi1=29.5*D2R, phi2=45.5*D2R, lon0=-96*D2R, phi0=37.5*D2R;
+  const n=(Math.sin(phi1)+Math.sin(phi2))/2;
+  const C=Math.cos(phi1)**2 + 2*n*Math.sin(phi1);
+  const rho0=Math.sqrt(C-2*n*Math.sin(phi0))/n;
+  const conic=(lon,lat)=>{
+    const lam=lon*D2R, ph=lat*D2R;
+    const rho=Math.sqrt(Math.max(0,C-2*n*Math.sin(ph)))/n;
+    const th=n*(lam-lon0);
+    return [rho*Math.sin(th), rho0-rho*Math.cos(th)];
+  };
+  // fit contiguous 48 (+DC) to the world box
+  const cont=CAPITALS.filter(c=>c[1]!=="Alaska"&&c[1]!=="Hawaii");
+  cont.forEach(c=>{ c._p=conic(c[3],c[2]); });
+  const xs=cont.map(c=>c._p[0]), ys=cont.map(c=>c._p[1]);
+  const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+  const pad=150, s=Math.min((WORLD_W-2*pad)/(maxx-minx),(WORLD_H-2*pad-120)/(maxy-miny));
+  // invert y so higher latitudes (north) sit toward the TOP (canvas y grows downward)
+  cont.forEach(c=>{ c.x=pad+(c._p[0]-minx)*s; c.y=pad+(maxy-c._p[1])*s; delete c._p; });
+  // place AK & HI in the lower-left, as on a classic US map
+  const ak=CAPITALS.find(c=>c[1]==="Alaska"); ak.x=WORLD_W*0.10; ak.y=WORLD_H*0.86;
+  const hi=CAPITALS.find(c=>c[1]==="Hawaii"); hi.x=WORLD_W*0.27; hi.y=WORLD_H*0.93;
+}
+
+if(hasD3){
+  projection = d3.geoAlbersUsa().scale(WORLD_W*1.05).translate([WORLD_W/2, WORLD_H/2]);
+  pathGen = d3.geoPath(projection);
+  CAPITALS.forEach(c=>{
+    const p = projection([c[3], c[2]]); // [lon,lat]
+    c.x = p ? p[0] : WORLD_W/2;
+    c.y = p ? p[1] : WORLD_H/2;
+  });
+} else {
+  fallbackProject();
+}
+CAPITALS.forEach(c=>{ c.visited=false; c.cooldown=0; });
+
+// ---------- Canvas ----------
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let DPR = Math.min(window.devicePixelRatio||1, 2);
+let VW=0, VH=0;
+function resize(){
+  VW = window.innerWidth; VH = window.innerHeight;
+  cv.width = VW*DPR; cv.height = VH*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener("resize", resize); resize();
+
+// ---------- Map paths (loaded async) ----------
+let statePaths = [];      // array of Path2D
+let stateBorders = null;  // Path2D mesh
+let mapReady = false;
+async function loadMap(){
+  if(!hasD3 || typeof topojson === "undefined") return; // graceful: capitals-only mode
+  try {
+    const us = await fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(r=>r.json());
+    const states = topojson.feature(us, us.objects.states).features;
+    statePaths = states.map(f=> new Path2D(pathGen(f)) );
+    stateBorders = new Path2D(pathGen(topojson.mesh(us, us.objects.states, (a,b)=>a!==b)));
+    mapReady = true;
+  } catch(e){
+    console.warn("Map outlines unavailable — flying in capitals-only mode.", e);
+    mapReady = false;
+  }
+}
+loadMap();
+
+// ===========================================================
+//  AUDIO ENGINE (Web Audio API) — music + sound effects
+// ===========================================================
+const Audio = (()=>{
+  let ctxA=null, master=null, musicGain=null, sfxGain=null, noiseBuf=null;
+  let muted=false, started=false;
+
+  function init(){
+    if(started) return;
+    ctxA = new (window.AudioContext||window.webkitAudioContext)();
+    master = ctxA.createGain(); master.gain.value = 0.9; master.connect(ctxA.destination);
+    musicGain = ctxA.createGain(); musicGain.gain.value = 0.18; musicGain.connect(master);
+    sfxGain = ctxA.createGain(); sfxGain.gain.value = 0.6; sfxGain.connect(master);
+    // white-noise buffer for whooshes & booms
+    noiseBuf = ctxA.createBuffer(1, ctxA.sampleRate*1, ctxA.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    started = true;
+    startMusic();
+  }
+  function setMuted(m){ muted=m; if(master) master.gain.value = m?0:0.9; }
+
+  // ---- musical tone ----
+  function tone(freq, t, dur, type="triangle", vol=0.5, dest=musicGain){
+    const o=ctxA.createOscillator(), g=ctxA.createGain();
+    o.type=type; o.frequency.value=freq;
+    o.connect(g); g.connect(dest);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0008, t+dur);
+    o.start(t); o.stop(t+dur+0.05);
+  }
+
+  // ---- "Yankee Doodle" loop scheduler ----
+  const N={G3:196.0,A3:220.0,B3:246.94,C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.0,A4:440.0};
+  const MELODY=[ // [freq, beats]
+    [N.C4,1],[N.C4,1],[N.D4,1],[N.E4,1],[N.C4,1],[N.E4,1],[N.D4,2],
+    [N.C4,1],[N.C4,1],[N.D4,1],[N.E4,1],[N.C4,2],[N.B3,2],
+    [N.C4,1],[N.C4,1],[N.D4,1],[N.E4,1],[N.F4,1],[N.E4,1],[N.D4,1],[N.C4,1],
+    [N.B3,1],[N.G3,1],[N.A3,1],[N.B3,1],[N.C4,2],[N.C4,2]
+  ];
+  const BEAT=0.34;
+  let nextNote=0, mIndex=0, schedTimer=null;
+  function startMusic(){
+    nextNote = ctxA.currentTime + 0.15; mIndex=0;
+    if(schedTimer) clearInterval(schedTimer);
+    schedTimer = setInterval(scheduler, 60);
+  }
+  function scheduler(){
+    if(!ctxA) return;
+    while(nextNote < ctxA.currentTime + 0.4){
+      const [f,b]=MELODY[mIndex];
+      const dur=b*BEAT;
+      tone(f, nextNote, dur*0.92, "triangle", 0.5);          // lead
+      tone(f/2, nextNote, dur*0.92, "sine", 0.28);           // soft bass octave
+      // light bass pulse on beat
+      tone(f/2, nextNote, 0.12, "sine", 0.2);
+      nextNote += dur;
+      mIndex=(mIndex+1)%MELODY.length;
+    }
+  }
+
+  // ---- wing flap whoosh ----
+  let lastFlap=0;
+  function flap(){
+    if(!started||muted) return;
+    const now=ctxA.currentTime;
+    if(now-lastFlap<0.18) return;
+    lastFlap=now;
+    const src=ctxA.createBufferSource(); src.buffer=noiseBuf;
+    const bp=ctxA.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=520; bp.Q.value=0.8;
+    const g=ctxA.createGain();
+    src.connect(bp); bp.connect(g); g.connect(sfxGain);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(0.22, now+0.04);
+    g.gain.exponentialRampToValueAtTime(0.0008, now+0.28);
+    bp.frequency.setValueAtTime(300, now);
+    bp.frequency.linearRampToValueAtTime(700, now+0.2);
+    src.start(now); src.stop(now+0.3);
+  }
+
+  // ---- firework: boom + sparkle chimes ----
+  function firework(){
+    if(!started||muted) return;
+    const now=ctxA.currentTime;
+    // boom (noise burst, low)
+    const src=ctxA.createBufferSource(); src.buffer=noiseBuf;
+    const lp=ctxA.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=400;
+    const g=ctxA.createGain();
+    src.connect(lp); lp.connect(g); g.connect(sfxGain);
+    g.gain.setValueAtTime(0.5, now+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, now+0.5);
+    src.start(now); src.stop(now+0.55);
+    // descending sine thump
+    const o=ctxA.createOscillator(), og=ctxA.createGain();
+    o.type="sine"; o.frequency.setValueAtTime(180, now); o.frequency.exponentialRampToValueAtTime(50, now+0.4);
+    o.connect(og); og.connect(sfxGain);
+    og.gain.setValueAtTime(0.5, now); og.gain.exponentialRampToValueAtTime(0.001, now+0.45);
+    o.start(now); o.stop(now+0.5);
+    // sparkle chimes (rising arpeggio)
+    const notes=[523,659,784,1047,1319];
+    notes.forEach((f,i)=>{
+      const t=now+0.12+i*0.07;
+      const oo=ctxA.createOscillator(), gg=ctxA.createGain();
+      oo.type="triangle"; oo.frequency.value=f;
+      oo.connect(gg); gg.connect(sfxGain);
+      gg.gain.setValueAtTime(0.0001,t);
+      gg.gain.linearRampToValueAtTime(0.3,t+0.01);
+      gg.gain.exponentialRampToValueAtTime(0.0008,t+0.4);
+      oo.start(t); oo.stop(t+0.45);
+    });
+  }
+
+  // ---- victory fanfare (all 50) ----
+  function fanfare(){
+    if(!started) return;
+    const now=ctxA.currentTime;
+    const seq=[N.C4,N.E4,N.G4,N.A4,N.G4,N.A4*1.189]; // up to C5-ish
+    seq.forEach((f,i)=>{ tone(f, now+i*0.16, 0.4, "square", 0.4, sfxGain); });
+  }
+
+  return { init, setMuted, flap, firework, fanfare, get started(){return started;} };
+})();
+
+// ===========================================================
+//  EAGLE + CAMERA
+// ===========================================================
+const eagle = {
+  x: CAPITALS.find(c=>c[1]==="Kansas").x,  // start over the middle of the country
+  y: CAPITALS.find(c=>c[1]==="Kansas").y,
+  vx: 0, vy: 0, angle:0, speed:0, flap:0
+};
+const cam = { x:eagle.x, y:eagle.y, zoom: 2.6 };
+
+// ---------- Input ----------
+const keys={};
+window.addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  keys[k]=true;
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) e.preventDefault();
+});
+window.addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
+
+// touch joystick
+let stickActive=false, stickDX=0, stickDY=0, stickId=null;
+const stickEl=document.getElementById("stick"), knob=document.getElementById("knob");
+function placeStick(x,y){ stickEl.style.left=(x-60)+"px"; stickEl.style.top=(y-60)+"px"; }
+window.addEventListener("touchstart",e=>{
+  if(!playing) return;
+  const t=e.changedTouches[0];
+  stickActive=true; stickId=t.identifier;
+  stickEl.style.display="block"; placeStick(t.clientX,t.clientY);
+  stickDX=0; stickDY=0; knob.style.left="33px"; knob.style.top="33px";
+},{passive:true});
+window.addEventListener("touchmove",e=>{
+  if(!stickActive) return;
+  for(const t of e.changedTouches){
+    if(t.identifier!==stickId) continue;
+    const cx=parseFloat(stickEl.style.left)+60, cy=parseFloat(stickEl.style.top)+60;
+    let dx=t.clientX-cx, dy=t.clientY-cy;
+    const mag=Math.hypot(dx,dy), max=46;
+    if(mag>max){ dx=dx/mag*max; dy=dy/mag*max; }
+    knob.style.left=(33+dx)+"px"; knob.style.top=(33+dy)+"px";
+    stickDX=dx/max; stickDY=dy/max;
+  }
+},{passive:true});
+window.addEventListener("touchend",e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===stickId){ stickActive=false; stickDX=0; stickDY=0; stickEl.style.display="none"; }
+  }
+},{passive:true});
+
+// ===========================================================
+//  FIREWORKS PARTICLES
+// ===========================================================
+const fireworks=[]; // {x,y,particles:[],age}
+const COLORS=["#ff4d4d","#ffffff","#5b8cff","#ffd86b","#ff7bd5","#7bffa0"];
+function launchFirework(wx,wy){
+  const parts=[];
+  const n=46;
+  const col=COLORS[(Math.random()*COLORS.length)|0];
+  for(let i=0;i<n;i++){
+    const a=(Math.PI*2*i)/n + Math.random()*0.2;
+    const sp=1.4+Math.random()*2.6;
+    parts.push({x:wx,y:wy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1, col:Math.random()<0.3?"#ffffff":col});
+  }
+  fireworks.push({particles:parts, age:0});
+}
+function updateFireworks(dt){
+  for(let i=fireworks.length-1;i>=0;i--){
+    const f=fireworks[i]; f.age+=dt;
+    for(const p of f.particles){
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.vx*=0.97; p.vy*=0.97; p.life-=dt*0.7;
+    }
+    if(f.age>2.2) fireworks.splice(i,1);
+  }
+}
+
+// ===========================================================
+//  BANNER
+// ===========================================================
+const bannerEl=document.getElementById("banner");
+const bCity=document.getElementById("bcity"), bState=document.getElementById("bstate"), bNew=document.getElementById("bnew");
+let bannerTimer=null;
+function showBanner(city,state,isNew){
+  bCity.textContent=city; bState.textContent=state.toUpperCase();
+  bNew.textContent=isNew?"★ NEW CAPITAL! ★":"";
+  bannerEl.classList.add("show");
+  clearTimeout(bannerTimer);
+  bannerTimer=setTimeout(()=>bannerEl.classList.remove("show"),2200);
+}
+let visitedCount=0;
+const visitedEl=document.getElementById("visited");
+const nearestEl=document.getElementById("nearest");
+
+// ===========================================================
+//  GAME LOOP
+// ===========================================================
+let playing=false, lastT=0;
+const REACH = 26; // world-units distance to trigger a capital
+
+function update(dt){
+  // --- steering ---
+  let ax=0, ay=0;
+  if(keys["arrowleft"]||keys["a"]) ax-=1;
+  if(keys["arrowright"]||keys["d"]) ax+=1;
+  if(keys["arrowup"]||keys["w"]) ay-=1;
+  if(keys["arrowdown"]||keys["s"]) ay+=1;
+  if(stickActive){ ax+=stickDX; ay+=stickDY; }
+  const boost = (keys["shift"]||Math.hypot(stickDX,stickDY)>0.85)?1.7:1;
+
+  const mag=Math.hypot(ax,ay);
+  const ACC=0.9*boost, MAXV=4.6*boost, FRICT=0.94;
+  if(mag>0){
+    ax/=mag; ay/=mag;
+    eagle.vx+=ax*ACC; eagle.vy+=ay*ACC;
+    eagle.angle=Math.atan2(eagle.vy,eagle.vx);
+    eagle.flap+=dt*( (keys["shift"])?22:14 );
+    Audio.flap();
+  } else {
+    eagle.flap+=dt*6; // glide
+  }
+  // clamp speed
+  const v=Math.hypot(eagle.vx,eagle.vy);
+  if(v>MAXV){ eagle.vx=eagle.vx/v*MAXV; eagle.vy=eagle.vy/v*MAXV; }
+  eagle.vx*=FRICT; eagle.vy*=FRICT;
+  eagle.speed=Math.hypot(eagle.vx,eagle.vy);
+
+  eagle.x+=eagle.vx; eagle.y+=eagle.vy;
+  // soft world bounds
+  const M=80;
+  eagle.x=Math.max(-M,Math.min(WORLD_W+M,eagle.x));
+  eagle.y=Math.max(-M,Math.min(WORLD_H+M,eagle.y));
+
+  // camera follow (smooth)
+  cam.x+=(eagle.x-cam.x)*0.08;
+  cam.y+=(eagle.y-cam.y)*0.08;
+
+  // --- capital detection + nearest readout ---
+  let nearest=null, nd=1e9;
+  for(const c of CAPITALS){
+    if(c.cooldown>0) c.cooldown-=dt;
+    const d=Math.hypot(c.x-eagle.x, c.y-eagle.y);
+    if(d<nd){ nd=d; nearest=c; }
+    if(d<REACH && c.cooldown<=0){
+      c.cooldown=4;
+      const isNew=!c.visited;
+      if(isNew){ c.visited=true; visitedCount++; visitedEl.textContent=visitedCount; }
+      launchFirework(c.x, c.y-6);
+      launchFirework(c.x-14, c.y-2);
+      launchFirework(c.x+14, c.y-2);
+      Audio.firework();
+      showBanner(c[0], c[1], isNew);
+      if(visitedCount===50){ Audio.fanfare(); celebrate(); }
+    }
+  }
+  if(nearest){
+    const milesPerUnit = 2900/WORLD_W; // rough scale: ~2900 mi coast-to-coast
+    const mi=Math.round(nd*milesPerUnit/10)*10;
+    if(nd<REACH) nearestEl.textContent=`Over ${nearest[0]}! 🎆`;
+    else nearestEl.textContent=`Nearest capital: ${nearest[0]} (~${mi} mi)`;
+  }
+
+  updateFireworks(dt);
+}
+
+let celebrating=false;
+function celebrate(){
+  if(celebrating) return; celebrating=true;
+  let bursts=0;
+  const iv=setInterval(()=>{
+    launchFirework(cam.x+(Math.random()-0.5)*300/cam.zoom, cam.y+(Math.random()-0.6)*200/cam.zoom);
+    Audio.firework();
+    if(++bursts>10){ clearInterval(iv); }
+  },350);
+  showBanner("Happy 250th!","United States of America",false);
+}
+
+// ---------- DRAW ----------
+function draw(){
+  // sky gradient background
+  const g=ctx.createLinearGradient(0,0,0,VH);
+  g.addColorStop(0,"#16306b"); g.addColorStop(0.55,"#3360b0"); g.addColorStop(1,"#7fb0e6");
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+
+  ctx.save();
+  // camera transform: center screen on cam, scaled
+  ctx.translate(VW/2, VH/2);
+  ctx.scale(cam.zoom, cam.zoom);
+  ctx.translate(-cam.x, -cam.y);
+
+  // --- map land ---
+  if(mapReady){
+    ctx.fillStyle="#2f7d4f";
+    ctx.strokeStyle="rgba(255,255,255,0.0)";
+    for(const p of statePaths){ ctx.fill(p); }
+    // borders
+    ctx.lineWidth=1/cam.zoom*1.4;
+    ctx.strokeStyle="rgba(255,255,255,0.55)";
+    ctx.stroke(stateBorders);
+    // subtle coastline glow already via gradient sea
+  } else {
+    // fallback: faint grid so it still works offline
+    ctx.strokeStyle="rgba(255,255,255,0.12)"; ctx.lineWidth=1/cam.zoom;
+    for(let x=0;x<=WORLD_W;x+=100){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_H); ctx.stroke(); }
+    for(let y=0;y<=WORLD_H;y+=100){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_W,y); ctx.stroke(); }
+  }
+
+  // --- capitals ---
+  const t=performance.now()/1000;
+  for(const c of CAPITALS){
+    const pulse=0.5+0.5*Math.sin(t*3 + c.x*0.01);
+    // glow
+    ctx.beginPath();
+    ctx.fillStyle=c.visited?"rgba(123,255,160,0.25)":`rgba(255,216,107,${0.18+0.18*pulse})`;
+    ctx.arc(c.x,c.y, (c.visited?6:8+pulse*4)/1, 0,Math.PI*2); ctx.fill();
+    // star marker
+    drawStar(c.x,c.y, 5, c.visited?"#7bffa0":"#ffd86b");
+    // label (only when reasonably zoomed/near)
+    const dToCam=Math.hypot(c.x-cam.x,c.y-cam.y);
+    if(dToCam< (VW/2/cam.zoom)+40){
+      ctx.font=`${7}px "Trebuchet MS", sans-serif`;
+      ctx.textAlign="center";
+      ctx.lineWidth=2.4; ctx.strokeStyle="rgba(10,26,58,0.85)";
+      ctx.strokeText(c[0], c.x, c.y-9);
+      ctx.fillStyle=c.visited?"#caffd6":"#fff";
+      ctx.fillText(c[0], c.x, c.y-9);
+    }
+  }
+
+  // --- fireworks ---
+  for(const f of fireworks){
+    for(const p of f.particles){
+      if(p.life<=0) continue;
+      ctx.globalAlpha=Math.max(0,p.life);
+      ctx.fillStyle=p.col;
+      ctx.beginPath(); ctx.arc(p.x,p.y, 1.8, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+
+  // --- eagle shadow on ground ---
+  ctx.fillStyle="rgba(0,0,0,0.18)";
+  ctx.beginPath(); ctx.ellipse(eagle.x, eagle.y+10, 9, 4, 0, 0, Math.PI*2); ctx.fill();
+
+  // --- eagle ---
+  drawEagle(eagle.x, eagle.y, eagle.angle, eagle.flap);
+
+  ctx.restore();
+
+  // vignette
+  const rg=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*0.35, VW/2,VH/2,Math.max(VW,VH)*0.7);
+  rg.addColorStop(0,"rgba(0,0,0,0)"); rg.addColorStop(1,"rgba(0,0,0,0.28)");
+  ctx.fillStyle=rg; ctx.fillRect(0,0,VW,VH);
+}
+
+function drawStar(x,y,r,col){
+  ctx.beginPath();
+  for(let i=0;i<5;i++){
+    const a=-Math.PI/2 + i*2*Math.PI/5;
+    const a2=a+Math.PI/5;
+    ctx.lineTo(x+Math.cos(a)*r, y+Math.sin(a)*r);
+    ctx.lineTo(x+Math.cos(a2)*r*0.45, y+Math.sin(a2)*r*0.45);
+  }
+  ctx.closePath();
+  ctx.fillStyle=col; ctx.fill();
+}
+
+function drawEagle(x,y,angle,flap){
+  const wingUp = Math.sin(flap)*0.7; // -0.7..0.7
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(angle);
+  // body sized in world units (~ small bird flying over map)
+  const s=1.0;
+  // wings (brown), flap by vertical squash
+  ctx.fillStyle="#5a3a1a";
+  // back wing
+  ctx.beginPath();
+  ctx.moveTo(-1*s, 0);
+  ctx.quadraticCurveTo(-10*s, (-6-wingUp*6)*s, -16*s, (-1-wingUp*3)*s);
+  ctx.quadraticCurveTo(-9*s, 1*s, -1*s, 2*s);
+  ctx.fill();
+  // front wing
+  ctx.beginPath();
+  ctx.moveTo(-1*s, 0);
+  ctx.quadraticCurveTo(-10*s, (6+wingUp*6)*s, -16*s, (1+wingUp*3)*s);
+  ctx.quadraticCurveTo(-9*s, -1*s, -1*s, -2*s);
+  ctx.fill();
+  // body
+  ctx.fillStyle="#6b4423";
+  ctx.beginPath(); ctx.ellipse(0,0,8*s,4*s,0,0,Math.PI*2); ctx.fill();
+  // white head
+  ctx.fillStyle="#f7f7f2";
+  ctx.beginPath(); ctx.arc(8*s,-1*s,3.4*s,0,Math.PI*2); ctx.fill();
+  // beak
+  ctx.fillStyle="#ffc23c";
+  ctx.beginPath(); ctx.moveTo(11*s,-1*s); ctx.lineTo(15*s,0); ctx.lineTo(11*s,1.2*s); ctx.closePath(); ctx.fill();
+  // eye
+  ctx.fillStyle="#1a1a1a";
+  ctx.beginPath(); ctx.arc(9*s,-1.6*s,0.8*s,0,Math.PI*2); ctx.fill();
+  // tail (white)
+  ctx.fillStyle="#f7f7f2";
+  ctx.beginPath(); ctx.moveTo(-8*s,-2*s); ctx.lineTo(-13*s,0); ctx.lineTo(-8*s,2*s); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function loop(t){
+  if(!playing) return;
+  const dt=Math.min(0.05,(t-lastT)/1000)||0.016; lastT=t;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ===========================================================
+//  START / UI WIRING
+// ===========================================================
+const startEl=document.getElementById("start");
+const hudEl=document.getElementById("hud");
+const hintEl=document.getElementById("hint");
+document.getElementById("playBtn").addEventListener("click", ()=>{
+  Audio.init();
+  startEl.style.display="none";
+  hudEl.style.display="flex";
+  hintEl.style.display="block";
+  playing=true; lastT=performance.now();
+  requestAnimationFrame(loop);
+});
+
+let muted=false;
+const muteBtn=document.getElementById("muteBtn");
+muteBtn.addEventListener("click", ()=>{
+  muted=!muted; Audio.setMuted(muted);
+  muteBtn.textContent=muted?"🔇":"🔊";
+});
+
+// keep canvas crisp on rotate
+window.addEventListener("orientationchange", ()=>setTimeout(resize,300));
+</script>
+</body>
+</html>
