@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>🌍 Earth Explorer — A Digital Twin of Our Planet</title>
+<link href="https://cdn.jsdelivr.net/npm/cesium@1.118/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.118/Build/Cesium/Cesium.js"></script>
+<style>
+  :root{
+    --accent:#22d3ee;
+    --accent2:#a855f7;
+    --panel:rgba(12,18,38,0.82);
+    --panel-border:rgba(120,180,255,0.25);
+    --text:#eaf2ff;
+    --muted:#9fb3d1;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;background:#000;color:var(--text);}
+  #cesiumContainer{position:absolute;inset:0;}
+  .cesium-widget-credits{font-size:9px;opacity:0.55;}
+
+  /* ---------- Top bar ---------- */
+  #topbar{
+    position:absolute;top:14px;left:50%;transform:translateX(-50%);
+    z-index:20;display:flex;gap:10px;align-items:center;
+    width:min(620px,calc(100% - 28px));
+  }
+  #brand{
+    display:flex;align-items:center;gap:8px;flex:0 0 auto;
+    background:var(--panel);border:1px solid var(--panel-border);
+    backdrop-filter:blur(10px);padding:9px 13px;border-radius:14px;
+    font-weight:800;font-size:15px;letter-spacing:.3px;white-space:nowrap;
+    box-shadow:0 8px 28px rgba(0,0,0,.45);
+  }
+  #brand .dot{font-size:18px;filter:drop-shadow(0 0 6px var(--accent));}
+
+  /* ---------- Search ---------- */
+  #searchWrap{position:relative;flex:1 1 auto;min-width:0;}
+  #search{
+    width:100%;padding:12px 40px 12px 16px;border-radius:14px;
+    border:1px solid var(--panel-border);background:var(--panel);
+    backdrop-filter:blur(10px);color:var(--text);font-size:15px;outline:none;
+    box-shadow:0 8px 28px rgba(0,0,0,.45);transition:border-color .15s, box-shadow .15s;
+  }
+  #search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,211,238,.25),0 8px 28px rgba(0,0,0,.45);}
+  #search::placeholder{color:var(--muted);}
+  #searchIcon{position:absolute;right:14px;top:50%;transform:translateY(-50%);
+    font-size:16px;pointer-events:none;opacity:.8;}
+  #suggestions{
+    position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
+    background:var(--panel);border:1px solid var(--panel-border);
+    backdrop-filter:blur(14px);border-radius:14px;overflow:hidden;
+    max-height:330px;overflow-y:auto;display:none;box-shadow:0 16px 40px rgba(0,0,0,.55);
+  }
+  .sug{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:11px 16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);
+    font-size:14px;
+  }
+  .sug:last-child{border-bottom:none;}
+  .sug.active,.sug:hover{background:linear-gradient(90deg,rgba(34,211,238,.18),rgba(168,85,247,.18));}
+  .sug .nm{font-weight:600;}
+  .sug .nm b{color:var(--accent);}
+  .sug .meta{color:var(--muted);font-size:12px;white-space:nowrap;}
+
+  /* ---------- Bottom toolbar ---------- */
+  #toolbar{
+    position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
+    z-index:20;display:flex;gap:8px;align-items:center;
+    background:var(--panel);border:1px solid var(--panel-border);
+    backdrop-filter:blur(10px);padding:8px;border-radius:18px;
+    box-shadow:0 10px 34px rgba(0,0,0,.5);
+  }
+  .tbtn{
+    display:flex;align-items:center;gap:7px;border:none;cursor:pointer;
+    background:rgba(255,255,255,.06);color:var(--text);
+    padding:10px 15px;border-radius:13px;font-size:14px;font-weight:600;
+    transition:transform .1s, background .15s;white-space:nowrap;
+  }
+  .tbtn:hover{background:rgba(255,255,255,.14);transform:translateY(-1px);}
+  .tbtn:active{transform:translateY(0);}
+  .tbtn.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06121f;}
+  .sep{width:1px;height:26px;background:var(--panel-border);margin:0 2px;}
+
+  /* ---------- Hover stats popup ---------- */
+  #popup{
+    position:absolute;z-index:25;pointer-events:none;display:none;
+    background:var(--panel);border:1px solid var(--panel-border);
+    backdrop-filter:blur(14px);border-radius:14px;padding:13px 15px;
+    min-width:210px;max-width:260px;box-shadow:0 14px 40px rgba(0,0,0,.55);
+    transform:translate(14px,14px);
+  }
+  #popup h3{margin:0 0 9px;font-size:16px;display:flex;align-items:center;gap:7px;}
+  #popup .row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;}
+  #popup .row .k{color:var(--muted);}
+  #popup .row .v{font-weight:700;}
+  #popup .bar{height:3px;border-radius:3px;margin-top:9px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));}
+
+  /* ---------- Loading ---------- */
+  #loader{
+    position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;
+    background:radial-gradient(circle at 50% 40%,#0a1430,#000 70%);transition:opacity .6s;
+  }
+  #loader.hide{opacity:0;pointer-events:none;}
+  .spinner{width:54px;height:54px;border-radius:50%;
+    border:4px solid rgba(255,255,255,.12);border-top-color:var(--accent);
+    animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loader .lt{font-size:16px;font-weight:700;letter-spacing:.4px;}
+  #loader .ls{font-size:13px;color:var(--muted);}
+
+  /* ---------- Help hint ---------- */
+  #hint{
+    position:absolute;top:14px;left:14px;z-index:18;
+    background:var(--panel);border:1px solid var(--panel-border);
+    backdrop-filter:blur(10px);padding:10px 13px;border-radius:13px;
+    font-size:12px;color:var(--muted);max-width:200px;line-height:1.5;
+    box-shadow:0 8px 28px rgba(0,0,0,.45);
+  }
+  #hint b{color:var(--text);}
+  @media (max-width:680px){
+    #hint{display:none;}
+    #brand span.txt{display:none;}
+    .tbtn span.txt{display:none;}
+    .tbtn{padding:11px 13px;}
+  }
+</style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div id="hint">🖱️ <b>Drag</b> to spin · <b>Scroll</b> to zoom from space to streets · <b>Right-drag</b> to tilt</div>
+
+<div id="topbar">
+  <div id="brand"><span class="dot">🌍</span><span class="txt">Earth Explorer</span></div>
+  <div id="searchWrap">
+    <input id="search" type="text" autocomplete="off" spellcheck="false"
+           placeholder="Search for a country…" />
+    <span id="searchIcon">🔍</span>
+    <div id="suggestions"></div>
+  </div>
+</div>
+
+<div id="toolbar">
+  <button class="tbtn on" id="btnDay">☀️ <span class="txt">Day</span></button>
+  <button class="tbtn" id="btnNight">🌙 <span class="txt">Night</span></button>
+  <div class="sep"></div>
+  <button class="tbtn" id="btnHome">🚀 <span class="txt">Whole Earth</span></button>
+  <button class="tbtn" id="btnZoomIn">➕</button>
+  <button class="tbtn" id="btnZoomOut">➖</button>
+</div>
+
+<div id="popup">
+  <h3><span id="pFlag">🏳️</span><span id="pName">Country</span></h3>
+  <div class="row"><span class="k">Area</span><span class="v" id="pArea">—</span></div>
+  <div class="row"><span class="k">Population</span><span class="v" id="pPop">—</span></div>
+  <div class="row"><span class="k">GDP</span><span class="v" id="pGdp">—</span></div>
+  <div class="bar"></div>
+</div>
+
+<div id="loader">
+  <div class="spinner"></div>
+  <div class="lt">🌍 Building your digital twin of Earth…</div>
+  <div class="ls" id="loaderSub">Loading globe imagery</div>
+</div>
+
+<script>
+(async function(){
+  "use strict";
+
+  // We use only free, public assets — no Cesium ion token required.
+  if (window.Cesium && Cesium.Ion) { Cesium.Ion.defaultAccessToken = undefined; }
+
+  const sub = document.getElementById('loaderSub');
+  const setSub = t => { sub.textContent = t; };
+
+  /* ============================================================
+     1. VIEWER  (no ion assets — custom free imagery)
+  ============================================================ */
+  const viewer = new Cesium.Viewer('cesiumContainer', {
+    baseLayer: false,            // we'll add our own free imagery
+    baseLayerPicker: false,
+    geocoder: false,
+    homeButton: false,
+    sceneModePicker: false,
+    navigationHelpButton: false,
+    animation: false,
+    timeline: false,
+    fullscreenButton: false,
+    infoBox: false,
+    selectionIndicator: false,
+    creditContainer: undefined,
+    contextOptions: { webgl: { powerPreference: 'high-performance' } }
+  });
+
+  const scene = viewer.scene;
+  const globe = scene.globe;
+
+  // Nice "from space" feel
+  scene.skyAtmosphere.show = true;
+  globe.showGroundAtmosphere = true;
+  globe.enableLighting = false;          // toggled by day/night
+  globe.baseColor = Cesium.Color.fromCssColorString('#0b1a33');
+  globe.maximumScreenSpaceError = 1.8;   // sharper imagery as you zoom
+  scene.fog.enabled = true;
+  scene.postProcessStages.fxaa.enabled = true;
+  viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 2);
+
+  // Let users zoom all the way down to street level
+  scene.screenSpaceCameraController.minimumZoomDistance = 120; // ~street level
+
+  // Keep the globe a visible dark navy even before/if tiles fail to paint,
+  // so it never disappears against the black of space.
+  const GLOBE_BASE = Cesium.Color.fromCssColorString('#0b1a33');
+  globe.baseColor = GLOBE_BASE;
+
+  /* ---- DAY layer: ESRI World Imagery satellite (free, zooms to streets) ---- */
+  setSub('Loading day imagery (satellite)…');
+  const dayLayer = viewer.imageryLayers.addImageryProvider(
+    new Cesium.UrlTemplateImageryProvider({
+      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      maximumLevel: 19,
+      credit: 'Imagery © Esri, Maxar, Earthstar Geographics'
+    })
+  );
+  dayLayer.errorEvent && dayLayer.errorEvent.addEventListener(e => console.warn('Day tile error', e));
+
+  /* ---- NIGHT layer: NASA VIIRS "Black Marble" city lights (free GIBS) ---- */
+  const nightLayer = viewer.imageryLayers.addImageryProvider(
+    new Cesium.WebMapTileServiceImageryProvider({
+      url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{TileMatrix}/{TileRow}/{TileCol}.png',
+      layer: 'VIIRS_Black_Marble',
+      style: 'default',
+      tileMatrixSetID: 'GoogleMapsCompatible_Level8',
+      maximumLevel: 8,
+      format: 'image/png',
+      credit: 'NASA Black Marble (VIIRS)'
+    })
+  );
+  nightLayer.show = false;
+
+  // Start looking at the whole Earth
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(10, 25, 22000000)
+  });
+
+  /* ============================================================
+     2. COUNTRY BORDERS + STATS  (Natural Earth, loaded at runtime)
+  ============================================================ */
+  setSub('Loading country borders & stats…');
+
+  const GEOJSON_URL =
+    'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson';
+
+  // Defensive property getter (Natural Earth keys vary by version)
+  function prop(p, keys){
+    for (const k of keys){
+      if (p[k] !== undefined && p[k] !== null && p[k] !== -99 && p[k] !== '') return p[k];
+    }
+    return null;
+  }
+
+  // Geodesic polygon area (km²) from GeoJSON geometry
+  const R = 6378137;
+  const rad = d => d * Math.PI / 180;
+  function ringArea(ring){
+    let a = 0;
+    for (let i = 0; i < ring.length - 1; i++){
+      const [lo1, la1] = ring[i], [lo2, la2] = ring[i + 1];
+      a += rad(lo2 - lo1) * (2 + Math.sin(rad(la1)) + Math.sin(rad(la2)));
+    }
+    return a * R * R / 2;
+  }
+  function polyArea(coords){ // [outer, hole, hole...]
+    if (!coords.length) return 0;
+    let a = Math.abs(ringArea(coords[0]));
+    for (let i = 1; i < coords.length; i++) a -= Math.abs(ringArea(coords[i]));
+    return a;
+  }
+  function geomArea(g){
+    let a = 0;
+    if (g.type === 'Polygon') a = polyArea(g.coordinates);
+    else if (g.type === 'MultiPolygon') for (const poly of g.coordinates) a += polyArea(poly);
+    return a / 1e6; // m² -> km²
+  }
+
+  const fmtArea = v => v == null ? 'N/A' : Math.round(v).toLocaleString() + ' km²';
+  const fmtPop  = v => {
+    if (v == null) return 'N/A';
+    if (v >= 1e9) return (v/1e9).toFixed(2) + ' B';
+    if (v >= 1e6) return (v/1e6).toFixed(1) + ' M';
+    if (v >= 1e3) return (v/1e3).toFixed(0) + ' K';
+    return Math.round(v).toLocaleString();
+  };
+  const fmtGdp = v => { // v in millions USD
+    if (v == null) return 'N/A';
+    if (v >= 1e6) return '$' + (v/1e6).toFixed(2) + ' T';
+    if (v >= 1e3) return '$' + (v/1e3).toFixed(1) + ' B';
+    return '$' + Math.round(v).toLocaleString() + ' M';
+  };
+  // Simple emoji flag from ISO-2 code
+  function flagEmoji(iso2){
+    if (!iso2 || iso2.length !== 2 || iso2 === '-99') return '🏳️';
+    const A = 0x1F1E6, off = 'A'.charCodeAt(0);
+    return String.fromCodePoint(...[...iso2.toUpperCase()].map(c => A + c.charCodeAt(0) - off));
+  }
+
+  let geojson;
+  try {
+    geojson = await fetch(GEOJSON_URL).then(r => { if(!r.ok) throw 0; return r.json(); });
+  } catch(e){
+    setSub('⚠️ Could not load country data (offline?). Globe still works.');
+  }
+
+  const HL_NORMAL_FILL    = Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.0);
+  const HL_NORMAL_OUTLINE = Cesium.Color.fromCssColorString('#7fdfff').withAlpha(0.55);
+  const HL_HOVER_FILL     = Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.32);
+  const HL_HOVER_OUTLINE  = Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.95);
+
+  const countries = [];   // {name, iso2, pop, gdp, area, entity}
+  let dataSource = null;
+
+  if (geojson){
+    // Pre-compute stats keyed by a normalized name
+    const statsByName = {};
+    for (const f of geojson.features){
+      const p = f.properties || {};
+      const name = prop(p, ['ADMIN','NAME_LONG','NAME','name','BRK_NAME','SOVEREIGNT']) || 'Unknown';
+      statsByName[name.toLowerCase()] = {
+        name,
+        iso2: prop(p, ['ISO_A2','ISO_A2_EH','iso_a2']),
+        pop:  prop(p, ['POP_EST','pop_est']),
+        gdp:  prop(p, ['GDP_MD','GDP_MD_EST','gdp_md','gdp_md_est']),
+        area: geomArea(f.geometry)
+      };
+    }
+
+    dataSource = await Cesium.GeoJsonDataSource.load(geojson, {
+      stroke: HL_NORMAL_OUTLINE,
+      fill: HL_NORMAL_FILL,
+      strokeWidth: 1,
+      clampToGround: false
+    });
+    viewer.dataSources.add(dataSource);
+
+    for (const ent of dataSource.entities.values){
+      if (!ent.polygon) continue;
+      const nm = ent.properties &&
+        (prop(ent.properties.getValue(Cesium.JulianDate.now()),
+              ['ADMIN','NAME_LONG','NAME','name','BRK_NAME','SOVEREIGNT']) || ent.name);
+      const s = statsByName[(nm||'').toLowerCase()] || {};
+      ent.polygon.material = HL_NORMAL_FILL;
+      ent.polygon.outline = true;
+      ent.polygon.outlineColor = HL_NORMAL_OUTLINE;
+      ent.polygon.height = 0;
+      ent.polygon.arcType = Cesium.ArcType.GEODESIC;
+      const rec = {
+        name: s.name || nm || 'Unknown',
+        iso2: s.iso2, pop: s.pop, gdp: s.gdp, area: s.area,
+        entity: ent
+      };
+      ent._rec = rec;
+      countries.push(rec);
+    }
+    countries.sort((a,b)=>a.name.localeCompare(b.name));
+  }
+
+  /* ============================================================
+     3. HOVER HIGHLIGHT + STATS POPUP
+  ============================================================ */
+  const popup  = document.getElementById('popup');
+  const pName  = document.getElementById('pName');
+  const pFlag  = document.getElementById('pFlag');
+  const pArea  = document.getElementById('pArea');
+  const pPop   = document.getElementById('pPop');
+  const pGdp   = document.getElementById('pGdp');
+  let hovered = null;
+
+  function setHover(rec){
+    if (hovered === rec) return;
+    if (hovered && hovered.entity.polygon){
+      hovered.entity.polygon.material    = HL_NORMAL_FILL;
+      hovered.entity.polygon.outlineColor = HL_NORMAL_OUTLINE;
+    }
+    hovered = rec;
+    if (hovered && hovered.entity.polygon){
+      hovered.entity.polygon.material    = HL_HOVER_FILL;
+      hovered.entity.polygon.outlineColor = HL_HOVER_OUTLINE;
+    }
+  }
+
+  const handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+  handler.setInputAction(function(movement){
+    const picked = scene.pick(movement.endPosition);
+    if (Cesium.defined(picked) && picked.id && picked.id._rec){
+      const rec = picked.id._rec;
+      setHover(rec);
+      pName.textContent = rec.name;
+      pFlag.textContent = flagEmoji(rec.iso2);
+      pArea.textContent = fmtArea(rec.area);
+      pPop.textContent  = fmtPop(rec.pop);
+      pGdp.textContent  = fmtGdp(rec.gdp);
+      popup.style.display = 'block';
+      const x = movement.endPosition.x, y = movement.endPosition.y;
+      // keep popup on-screen
+      const pw = 260, ph = 160;
+      popup.style.left = Math.min(x, window.innerWidth  - pw - 20) + 'px';
+      popup.style.top  = Math.min(y, window.innerHeight - ph - 20) + 'px';
+    } else {
+      setHover(null);
+      popup.style.display = 'none';
+    }
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+  // Click a country to fly to it
+  handler.setInputAction(function(click){
+    const picked = scene.pick(click.position);
+    if (Cesium.defined(picked) && picked.id && picked.id._rec){
+      flyToCountry(picked.id._rec);
+    }
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  /* ============================================================
+     4. SEARCH + AUTOCOMPLETE + FLY-TO
+  ============================================================ */
+  const search = document.getElementById('search');
+  const sugBox = document.getElementById('suggestions');
+  let matches = [], activeIdx = -1;
+
+  function flyToCountry(rec){
+    setHover(rec);
+    pName.textContent = rec.name;
+    pFlag.textContent = flagEmoji(rec.iso2);
+    pArea.textContent = fmtArea(rec.area);
+    pPop.textContent  = fmtPop(rec.pop);
+    pGdp.textContent  = fmtGdp(rec.gdp);
+    viewer.flyTo(rec.entity, {
+      duration: 2.4,
+      offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-55), 0)
+    });
+  }
+
+  function renderSuggestions(){
+    if (!matches.length){ sugBox.style.display='none'; return; }
+    sugBox.innerHTML = matches.map((m,i)=>{
+      const q = search.value.trim();
+      const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')','ig');
+      const disp = m.name.replace(re,'<b>$1</b>');
+      return `<div class="sug ${i===activeIdx?'active':''}" data-i="${i}">
+                <span class="nm">${flagEmoji(m.iso2)} ${disp}</span>
+                <span class="meta">${fmtPop(m.pop)} people</span>
+              </div>`;
+    }).join('');
+    sugBox.style.display='block';
+  }
+
+  function doSearch(){
+    const q = search.value.trim().toLowerCase();
+    activeIdx = -1;
+    if (!q){ matches=[]; sugBox.style.display='none'; return; }
+    matches = countries
+      .filter(c => c.name.toLowerCase().includes(q))
+      .sort((a,b)=>{
+        const as=a.name.toLowerCase().startsWith(q), bs=b.name.toLowerCase().startsWith(q);
+        if (as!==bs) return as?-1:1;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0,8);
+    renderSuggestions();
+  }
+
+  function choose(i){
+    if (i<0 || i>=matches.length) return;
+    const rec = matches[i];
+    search.value = rec.name;
+    sugBox.style.display='none';
+    flyToCountry(rec);
+    search.blur();
+  }
+
+  search.addEventListener('input', doSearch);
+  search.addEventListener('focus', ()=>{ if(matches.length) sugBox.style.display='block'; });
+  search.addEventListener('keydown', e=>{
+    if (sugBox.style.display==='none') { if(e.key==='Enter') doSearch(); return; }
+    if (e.key==='ArrowDown'){ e.preventDefault(); activeIdx=Math.min(activeIdx+1,matches.length-1); renderSuggestions(); }
+    else if (e.key==='ArrowUp'){ e.preventDefault(); activeIdx=Math.max(activeIdx-1,0); renderSuggestions(); }
+    else if (e.key==='Enter'){ e.preventDefault(); choose(activeIdx>=0?activeIdx:0); }
+    else if (e.key==='Escape'){ sugBox.style.display='none'; }
+  });
+  sugBox.addEventListener('mousedown', e=>{
+    const el = e.target.closest('.sug'); if(el) choose(+el.dataset.i);
+  });
+  document.addEventListener('click', e=>{
+    if (!e.target.closest('#searchWrap')) sugBox.style.display='none';
+  });
+
+  /* ============================================================
+     5. DAY / NIGHT TOGGLE + CONTROLS
+  ============================================================ */
+  const btnDay   = document.getElementById('btnDay');
+  const btnNight = document.getElementById('btnNight');
+
+  function setDay(){
+    dayLayer.show = true; nightLayer.show = false;
+    globe.enableLighting = false;
+    globe.baseColor = GLOBE_BASE;          // visible navy fallback
+    scene.skyAtmosphere.show = true;
+    btnDay.classList.add('on'); btnNight.classList.remove('on');
+  }
+  function setNight(){
+    dayLayer.show = false; nightLayer.show = true;
+    // Lighting OFF so the WHOLE globe shows city lights (no dark terminator
+    // hiding half the planet). Keep a navy base so it stays visible.
+    globe.enableLighting = false;
+    globe.baseColor = GLOBE_BASE;
+    scene.skyAtmosphere.show = true;
+    btnNight.classList.add('on'); btnDay.classList.remove('on');
+  }
+  btnDay.addEventListener('click', setDay);
+  btnNight.addEventListener('click', setNight);
+
+  document.getElementById('btnHome').addEventListener('click', ()=>{
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(10, 25, 22000000),
+      duration: 2
+    });
+  });
+  const zoom = factor => {
+    const cam = viewer.camera;
+    const h = cam.positionCartographic.height;
+    cam.zoomIn(h * factor);
+  };
+  document.getElementById('btnZoomIn').addEventListener('click', ()=>zoom(0.45));
+  document.getElementById('btnZoomOut').addEventListener('click', ()=>{
+    viewer.camera.zoomOut(viewer.camera.positionCartographic.height * 0.9);
+  });
+
+  /* ============================================================
+     6. DONE
+  ============================================================ */
+  await Promise.resolve();
+  setTimeout(()=>document.getElementById('loader').classList.add('hide'), 600);
+
+})().catch(err=>{
+  console.error(err);
+  const l = document.getElementById('loaderSub');
+  if (l) l.textContent = '⚠️ Something went wrong loading the globe. Check your connection and refresh.';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WhereInTheWorld</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<style>
+  :root{
+    --space:#060b16;
+    --panel:rgba(9,16,29,0.86);
+    --panel-line:rgba(143,161,184,0.22);
+    --ink:#e8eef7;
+    --dim:#8fa1b8;
+    --amber:#ffc24b;          /* horizon amber — countries & focus */
+    --contrail:#6fd3ff;       /* contrail blue — flights & live data */
+    --radius:14px;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--space);
+    font-family:'Space Grotesk',system-ui,sans-serif;color:var(--ink)}
+  #globe{position:absolute;inset:0}
+  .cesium-viewer-bottom{left:8px;bottom:34px !important;opacity:.65}
+  .cesium-widget-credits{font-size:10px !important}
+
+  /* ---------- command panel ---------- */
+  #panel{
+    position:absolute;top:14px;left:14px;z-index:10;width:308px;max-width:calc(100vw - 28px);
+    background:var(--panel);border:1px solid var(--panel-line);border-radius:var(--radius);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+    padding:14px 16px 12px;
+  }
+  #brand{display:flex;align-items:baseline;gap:8px;margin-bottom:11px}
+  #brand h1{font-size:1.06rem;font-weight:700;letter-spacing:.02em}
+  #brand h1 em{font-style:normal;color:var(--amber)}
+  #brand span{font-family:'IBM Plex Mono',monospace;font-size:.6rem;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}
+
+  /* search */
+  #searchwrap{position:relative}
+  #search{
+    width:100%;padding:9px 34px 9px 12px;border-radius:9px;border:1px solid var(--panel-line);
+    background:rgba(6,11,22,.7);color:var(--ink);font:inherit;font-size:.92rem;outline:none;
+    transition:border-color .15s;
+  }
+  #search::placeholder{color:var(--dim)}
+  #search:focus-visible{border-color:var(--amber)}
+  #searchwrap::after{content:'⌕';position:absolute;right:11px;top:50%;transform:translateY(-54%);
+    color:var(--dim);font-size:1.05rem;pointer-events:none}
+  #suggest{
+    position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;display:none;
+    background:var(--panel);border:1px solid var(--panel-line);border-radius:10px;overflow:hidden;
+    backdrop-filter:blur(14px);max-height:264px;overflow-y:auto;
+  }
+  #suggest button{
+    display:flex;width:100%;justify-content:space-between;align-items:center;gap:8px;
+    padding:9px 12px;background:none;border:0;color:var(--ink);font:inherit;font-size:.9rem;
+    cursor:pointer;text-align:left;
+  }
+  #suggest button .iso{font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--dim)}
+  #suggest button:hover,#suggest button.active{background:rgba(255,194,75,.13)}
+  #suggest button:hover .iso,#suggest button.active .iso{color:var(--amber)}
+
+  /* layer toggles */
+  #layers{margin-top:13px;display:grid;gap:9px}
+  .lrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .lrow .lname{font-size:.86rem}
+  .lrow .lsub{display:block;font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:var(--dim);margin-top:1px}
+  .switch{position:relative;width:40px;height:22px;flex:none}
+  .switch input{position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;margin:0}
+  .switch .tr{position:absolute;inset:0;border-radius:999px;background:rgba(143,161,184,.25);
+    border:1px solid var(--panel-line);transition:background .18s}
+  .switch .tr::before{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+    background:var(--dim);transition:transform .18s,background .18s}
+  .switch input:checked + .tr{background:rgba(255,194,75,.32);border-color:rgba(255,194,75,.5)}
+  .switch input:checked + .tr::before{transform:translateX(18px);background:var(--amber)}
+  .switch input:focus-visible + .tr{outline:2px solid var(--amber);outline-offset:2px}
+  #t-flights:checked + .tr{background:rgba(111,211,255,.28);border-color:rgba(111,211,255,.5)}
+  #t-flights:checked + .tr::before{background:var(--contrail)}
+
+  /* day / night segmented */
+  #daynight{display:flex;margin-top:13px;border:1px solid var(--panel-line);border-radius:9px;overflow:hidden}
+  #daynight button{
+    flex:1;padding:7px 0;background:none;border:0;color:var(--dim);font:inherit;font-size:.84rem;
+    cursor:pointer;transition:background .15s,color .15s;
+  }
+  #daynight button:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+  #daynight button.on{background:rgba(255,194,75,.16);color:var(--amber);font-weight:500}
+  #resetview{margin-top:11px;width:100%;padding:7px 0;border-radius:9px;border:1px solid var(--panel-line);
+    background:none;color:var(--dim);font:inherit;font-size:.8rem;cursor:pointer}
+  #resetview:hover{color:var(--ink);border-color:var(--dim)}
+  #resetview:focus-visible{outline:2px solid var(--amber)}
+
+  /* ---------- country plate (hover popup) ---------- */
+  #plate{
+    position:absolute;z-index:30;display:none;min-width:218px;max-width:264px;pointer-events:none;
+    background:var(--panel);border:1px solid var(--panel-line);border-left:3px solid var(--amber);
+    border-radius:10px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    box-shadow:0 8px 30px rgba(0,0,0,.55);padding:11px 14px 10px;
+  }
+  #plate h2{font-size:.98rem;font-weight:700;letter-spacing:.01em;line-height:1.2}
+  #plate .iso{font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:var(--amber);letter-spacing:.18em;margin:2px 0 8px}
+  #plate dl{display:grid;grid-template-columns:auto 1fr;gap:3px 14px}
+  #plate dt{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;align-self:baseline;padding-top:2px}
+  #plate dd{font-family:'IBM Plex Mono',monospace;font-size:.82rem;text-align:right}
+  #plate .note{margin-top:7px;font-size:.6rem;color:var(--dim);font-family:'IBM Plex Mono',monospace}
+
+  /* ---------- instrument strip (signature) ---------- */
+  #strip{
+    position:absolute;left:0;right:0;bottom:0;z-index:10;display:flex;align-items:center;gap:18px;
+    padding:6px 14px;background:linear-gradient(0deg,rgba(6,11,22,.92),rgba(6,11,22,.55) 80%,transparent);
+    font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--dim);
+    pointer-events:none;white-space:nowrap;overflow:hidden;
+  }
+  #strip b{color:var(--ink);font-weight:500}
+  #strip .amber{color:var(--amber)}
+  #strip .blue{color:var(--contrail)}
+  #strip .sep{opacity:.35}
+
+  /* ---------- loader / toast ---------- */
+  #loader{position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;gap:14px;
+    align-items:center;justify-content:center;background:var(--space);transition:opacity .5s}
+  #loader.gone{opacity:0;pointer-events:none}
+  #loader .ring{width:54px;height:54px;border-radius:50%;border:2px solid rgba(255,194,75,.2);
+    border-top-color:var(--amber);animation:spin 1s linear infinite}
+  #loader p{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--dim);letter-spacing:.12em}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #toast{position:absolute;top:14px;right:14px;z-index:40;display:none;max-width:300px;
+    background:var(--panel);border:1px solid var(--panel-line);border-radius:10px;
+    padding:10px 14px;font-size:.8rem;color:var(--ink);backdrop-filter:blur(14px)}
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01s !important;transition-duration:.01s !important}
+  }
+  @media (max-width:480px){
+    #panel{width:calc(100vw - 28px)}
+    #strip{font-size:.6rem;gap:10px}
+  }
+</style>
+</head>
+<body>
+<div id="globe"></div>
+
+<aside id="panel">
+  <div id="brand">
+    <h1>Where<em>In</em>The<em>World</em></h1><span>digital twin</span>
+  </div>
+  <div id="searchwrap">
+    <input id="search" type="text" placeholder="Search a country…" autocomplete="off"
+           spellcheck="false" aria-label="Search a country" role="combobox" aria-expanded="false">
+    <div id="suggest" role="listbox"></div>
+  </div>
+  <div id="layers">
+    <div class="lrow">
+      <label class="lname" for="t-clouds">Cloud cover<span class="lsub">procedural layer · 60 km</span></label>
+      <span class="switch"><input type="checkbox" id="t-clouds"><span class="tr"></span></span>
+    </div>
+    <div class="lrow">
+      <label class="lname" for="t-flights">Flight traffic<span class="lsub" id="flightsub">live via OpenSky</span></label>
+      <span class="switch"><input type="checkbox" id="t-flights"><span class="tr"></span></span>
+    </div>
+  </div>
+  <div id="daynight" role="group" aria-label="Day or night view">
+    <button id="b-day" class="on">☀ Day</button>
+    <button id="b-night">☾ Night</button>
+  </div>
+  <button id="resetview">Reset to orbit view</button>
+</aside>
+
+<div id="plate" aria-hidden="true">
+  <h2 id="p-name"></h2>
+  <div class="iso" id="p-iso"></div>
+  <dl>
+    <dt>Area</dt><dd id="p-area"></dd>
+    <dt>Population</dt><dd id="p-pop"></dd>
+    <dt>GDP</dt><dd id="p-gdp"></dd>
+  </dl>
+  <div class="note">approx. recent estimates</div>
+</div>
+
+<div id="strip">
+  <span>LAT <b id="s-lat">—</b></span>
+  <span class="sep">|</span>
+  <span>LON <b id="s-lon">—</b></span>
+  <span class="sep">|</span>
+  <span>ALT <b id="s-alt">—</b></span>
+  <span class="sep">|</span>
+  <span class="amber" id="s-focus">orbit</span>
+  <span class="sep">|</span>
+  <span class="blue" id="s-flights"></span>
+</div>
+
+<div id="toast"></div>
+
+<div id="loader">
+  <div class="ring"></div>
+  <p>SPINNING UP THE PLANET…</p>
+</div>
+
+<script>window.CESIUM_BASE_URL='https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/';</script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Cesium.js"></script>
+<script>
+'use strict';
+/* ================================================================
+   WhereInTheWorld — a single-file 3D digital twin of Earth
+   Imagery:   OpenStreetMap (street-level zoom)
+   Night:     NASA GIBS · VIIRS city lights
+   Borders:   Natural Earth via world.geo.json (public domain)
+   Flights:   OpenSky Network live API (simulated fallback)
+   ================================================================ */
+
+const GEOJSON_URL='https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
+const NIGHT_URL='https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default//GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg';
+const OPENSKY_URL='https://opensky-network.org/api/states/all';
+
+/* ---- country stats: pop = millions, area = km², gdp = US$ billions (≈2023) ---- */
+const STATS={
+AFG:{p:42.2,a:652230,g:14.5},ALB:{p:2.8,a:28748,g:23},DZA:{p:45.6,a:2381741,g:240},
+AGO:{p:36.7,a:1246700,g:84},ARG:{p:46.7,a:2780400,g:640},ARM:{p:2.8,a:29743,g:24},
+AUS:{p:26.6,a:7692024,g:1720},AUT:{p:9.1,a:83871,g:516},AZE:{p:10.2,a:86600,g:72},
+BHS:{p:0.41,a:13943,g:14},BGD:{p:172.9,a:147570,g:446},BLR:{p:9.2,a:207600,g:72},
+BEL:{p:11.7,a:30528,g:632},BLZ:{p:0.41,a:22966,g:3.2},BEN:{p:13.7,a:112622,g:19.7},
+BTN:{p:0.79,a:38394,g:2.9},BOL:{p:12.4,a:1098581,g:46},BIH:{p:3.2,a:51197,g:27},
+BWA:{p:2.6,a:581730,g:19},BRA:{p:216.4,a:8515767,g:2170},BRN:{p:0.45,a:5765,g:15},
+BGR:{p:6.4,a:110879,g:102},BFA:{p:23.3,a:274200,g:20},BDI:{p:13.2,a:27834,g:2.6},
+KHM:{p:16.9,a:181035,g:32},CMR:{p:28.6,a:475442,g:49},CAN:{p:40.1,a:9984670,g:2140},
+CAF:{p:5.7,a:622984,g:2.7},TCD:{p:18.3,a:1284000,g:13},CHL:{p:19.6,a:756102,g:336},
+CHN:{p:1410.7,a:9596961,g:17790},COL:{p:52.1,a:1141748,g:364},COG:{p:6.1,a:342000,g:15},
+COD:{p:102.3,a:2344858,g:67},CRI:{p:5.2,a:51100,g:86},CIV:{p:28.9,a:322463,g:79},
+HRV:{p:3.9,a:56594,g:84},CUB:{p:11.0,a:109884,g:110},CYP:{p:1.3,a:9251,g:32},
+CZE:{p:10.5,a:78867,g:331},DNK:{p:5.9,a:43094,g:404},DJI:{p:1.1,a:23200,g:4},
+DOM:{p:11.3,a:48671,g:121},ECU:{p:18.0,a:283561,g:119},EGY:{p:112.7,a:1002450,g:396},
+SLV:{p:6.4,a:21041,g:34},GNQ:{p:1.7,a:28051,g:12},ERI:{p:3.7,a:117600,g:2.6},
+EST:{p:1.4,a:45228,g:41},SWZ:{p:1.2,a:17364,g:4.6},ETH:{p:126.5,a:1104300,g:160},
+FJI:{p:0.94,a:18272,g:5.5},FIN:{p:5.6,a:338424,g:300},FRA:{p:68.2,a:643801,g:3030},
+GAB:{p:2.4,a:267668,g:20},GMB:{p:2.8,a:11295,g:2.3},GEO:{p:3.7,a:69700,g:30},
+DEU:{p:84.5,a:357114,g:4456},GHA:{p:34.1,a:238533,g:76},GRC:{p:10.4,a:131957,g:238},
+GRL:{p:0.057,a:2166086,g:3.2},GTM:{p:17.6,a:108889,g:102},GIN:{p:14.2,a:245857,g:23},
+GNB:{p:2.2,a:36125,g:2},GUY:{p:0.81,a:214969,g:17},HTI:{p:11.7,a:27750,g:20},
+HND:{p:10.6,a:112492,g:34},HUN:{p:9.6,a:93028,g:212},ISL:{p:0.39,a:103000,g:31},
+IND:{p:1428.6,a:3287263,g:3550},IDN:{p:277.5,a:1904569,g:1370},IRN:{p:89.2,a:1648195,g:400},
+IRQ:{p:45.5,a:438317,g:254},IRL:{p:5.3,a:70273,g:545},ISR:{p:9.8,a:20770,g:510},
+ITA:{p:58.9,a:301336,g:2255},JAM:{p:2.8,a:10991,g:19},JPN:{p:124.5,a:377975,g:4210},
+JOR:{p:11.3,a:89342,g:51},KAZ:{p:19.9,a:2724900,g:261},KEN:{p:55.1,a:580367,g:108},
+PRK:{p:26.2,a:120538,g:28},KOR:{p:51.7,a:100210,g:1710},KWT:{p:4.3,a:17818,g:162},
+KGZ:{p:7.0,a:199951,g:14},LAO:{p:7.6,a:236800,g:15},LVA:{p:1.9,a:64559,g:44},
+LBN:{p:5.5,a:10452,g:18},LSO:{p:2.3,a:30355,g:2.4},LBR:{p:5.4,a:111369,g:4.3},
+LBY:{p:6.9,a:1759540,g:45},LTU:{p:2.9,a:65300,g:78},LUX:{p:0.66,a:2586,g:86},
+MKD:{p:1.8,a:25713,g:15},MDG:{p:30.3,a:587041,g:16},MWI:{p:20.9,a:118484,g:13},
+MYS:{p:34.3,a:330803,g:416},MLI:{p:23.3,a:1240192,g:21},MRT:{p:4.9,a:1030700,g:10},
+MEX:{p:128.5,a:1964375,g:1790},MDA:{p:2.5,a:33846,g:16},MNG:{p:3.4,a:1564110,g:20},
+MNE:{p:0.62,a:13812,g:7.4},MAR:{p:37.8,a:446550,g:141},MOZ:{p:33.9,a:801590,g:21},
+MMR:{p:54.6,a:676578,g:65},NAM:{p:2.6,a:824292,g:12},NPL:{p:30.9,a:147181,g:41},
+NLD:{p:17.8,a:41850,g:1118},NCL:{p:0.27,a:18575,g:10},NZL:{p:5.2,a:270467,g:253},
+NIC:{p:7.0,a:130373,g:17},NER:{p:27.2,a:1267000,g:17},NGA:{p:223.8,a:923768,g:363},
+NOR:{p:5.5,a:323802,g:486},OMN:{p:4.6,a:309500,g:108},PAK:{p:240.5,a:881913,g:338},
+PAN:{p:4.5,a:75417,g:83},PNG:{p:10.3,a:462840,g:31},PRY:{p:6.9,a:406752,g:43},
+PER:{p:34.4,a:1285216,g:268},PHL:{p:117.3,a:300000,g:437},POL:{p:36.7,a:312679,g:811},
+PRT:{p:10.3,a:92090,g:287},PRI:{p:3.2,a:9104,g:117},QAT:{p:2.7,a:11586,g:235},
+ROU:{p:19.0,a:238391,g:351},RUS:{p:144.4,a:17098242,g:2010},RWA:{p:14.1,a:26338,g:14},
+SAU:{p:36.9,a:2149690,g:1068},SEN:{p:17.8,a:196722,g:31},SRB:{p:6.6,a:88361,g:75},
+SLE:{p:8.8,a:71740,g:3.8},SVK:{p:5.4,a:49037,g:133},SVN:{p:2.1,a:20273,g:68},
+SLB:{p:0.74,a:28896,g:1.6},SOM:{p:18.1,a:637657,g:11},ZAF:{p:60.4,a:1221037,g:378},
+SSD:{p:11.1,a:619745,g:5},ESP:{p:48.4,a:505370,g:1580},LKA:{p:22.0,a:65610,g:84},
+SDN:{p:48.1,a:1861484,g:30},SUR:{p:0.62,a:163820,g:3.5},SWE:{p:10.5,a:450295,g:593},
+CHE:{p:8.8,a:41277,g:885},SYR:{p:23.2,a:185180,g:9},TWN:{p:23.4,a:36193,g:750},
+TJK:{p:10.1,a:143100,g:12},TZA:{p:67.4,a:947300,g:79},THA:{p:71.8,a:513120,g:515},
+TLS:{p:1.4,a:14874,g:2},TGO:{p:9.0,a:56785,g:9},TTO:{p:1.5,a:5128,g:28},
+TUN:{p:12.5,a:163610,g:49},TUR:{p:85.3,a:783562,g:1108},TKM:{p:6.5,a:488100,g:60},
+UGA:{p:48.6,a:241550,g:49},UKR:{p:36.7,a:603550,g:179},ARE:{p:9.5,a:83600,g:504},
+GBR:{p:68.4,a:243610,g:3340},USA:{p:334.9,a:9833520,g:27360},URY:{p:3.4,a:176215,g:77},
+UZB:{p:35.2,a:447400,g:91},VUT:{p:0.33,a:12189,g:1.1},VEN:{p:28.4,a:912050,g:102},
+VNM:{p:98.9,a:331212,g:430},ESH:{p:0.58,a:266000,g:null},YEM:{p:34.4,a:527968,g:21},
+ZMB:{p:20.6,a:752618,g:28},ZWE:{p:16.7,a:390757,g:27},ATA:{p:0.004,a:14000000,g:null},
+FLK:{p:0.004,a:12173,g:0.3},KOS:{p:1.8,a:10887,g:10},"-99":{p:null,a:null,g:null}
+};
+
+/* ---------------- formatting helpers ---------------- */
+const $=id=>document.getElementById(id);
+const fmtPop=p=>p==null?'—':p>=1000?(p/1000).toFixed(2)+' B':p>=1?p.toFixed(1)+' M':Math.round(p*1000)+' K';
+const fmtArea=a=>a==null?'—':Math.round(a).toLocaleString('en-US')+' km²';
+const fmtGdp=g=>g==null?'—':g>=1000?'$'+(g/1000).toFixed(2)+' T':'$'+(g>=100?Math.round(g):g)+' B';
+function toast(msg,ms=4200){const t=$('toast');t.textContent=msg;t.style.display='block';
+  clearTimeout(toast._h);toast._h=setTimeout(()=>t.style.display='none',ms);}
+
+/* ---------------- viewer ---------------- */
+const osmLayer=new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
+  url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  credit:'© OpenStreetMap contributors',maximumLevel:19
+}));
+const viewer=new Cesium.Viewer('globe',{
+  baseLayer:osmLayer,
+  baseLayerPicker:false,geocoder:false,timeline:false,animation:false,
+  sceneModePicker:false,navigationHelpButton:false,homeButton:false,
+  fullscreenButton:false,selectionIndicator:false,infoBox:false,
+  requestRenderMode:true,maximumRenderTimeChange:Infinity
+});
+const scene=viewer.scene,camera=viewer.camera;
+scene.skyAtmosphere.show=true;
+scene.globe.showGroundAtmosphere=true;
+scene.globe.baseColor=Cesium.Color.fromCssColorString('#0a1322');
+scene.fog.enabled=true;
+viewer.resolutionScale=Math.min(window.devicePixelRatio||1,2);
+scene.screenSpaceCameraController.minimumZoomDistance=60;   // street level
+scene.screenSpaceCameraController.maximumZoomDistance=4.2e7;
+
+const HOME=Cesium.Cartesian3.fromDegrees(-93.45,25.0,2.3e7); // over the Americas
+camera.setView({destination:HOME});
+
+/* ---------------- night mode (NASA city lights) ---------------- */
+let nightLayer=null,mode='day';
+function setMode(m){
+  if(m===mode)return;
+  mode=m;
+  $('b-day').classList.toggle('on',m==='day');
+  $('b-night').classList.toggle('on',m==='night');
+  if(m==='night'){
+    if(!nightLayer){
+      nightLayer=viewer.imageryLayers.addImageryProvider(
+        new Cesium.UrlTemplateImageryProvider({url:NIGHT_URL,credit:'NASA GIBS · VIIRS city lights',maximumLevel:8})
+      );
+    }
+    nightLayer.show=true;
+    scene.skyAtmosphere.brightnessShift=-0.7;
+    scene.globe.showGroundAtmosphere=false;
+  }else{
+    if(nightLayer)nightLayer.show=false;
+    osmLayer.alpha=1;
+    scene.skyAtmosphere.brightnessShift=0;
+    scene.globe.showGroundAtmosphere=true;
+  }
+  applyAltitudeFades();
+  scene.requestRender();
+}
+$('b-day').onclick=()=>setMode('day');
+$('b-night').onclick=()=>setMode('night');
+
+/* ---------------- procedural cloud layer ---------------- */
+function makeCloudCanvas(){
+  const c=document.createElement('canvas');c.width=2048;c.height=1024;
+  const x=c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height);
+  // big soft systems, biased toward temperate + tropical bands
+  for(let i=0;i<340;i++){
+    const lat=(Math.random()*2-1);                         // -1..1
+    const band=Math.exp(-Math.pow((Math.abs(lat)-0.45)/0.5,2))*0.7+Math.exp(-Math.pow(lat/0.18,2))*0.5;
+    if(Math.random()>band+0.12)continue;
+    const cx=Math.random()*c.width, cy=(lat*0.5+0.5)*c.height;
+    const r=24+Math.random()*120;
+    const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+    const a=0.05+Math.random()*0.22;
+    g.addColorStop(0,`rgba(255,255,255,${a})`);
+    g.addColorStop(0.6,`rgba(255,255,255,${a*0.5})`);
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,Math.PI*2);x.fill();
+  }
+  // wispy detail
+  for(let i=0;i<900;i++){
+    const cx=Math.random()*c.width,cy=Math.random()*c.height,r=4+Math.random()*22;
+    const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+    const a=0.03+Math.random()*0.1;
+    g.addColorStop(0,`rgba(255,255,255,${a})`);g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,Math.PI*2);x.fill();
+  }
+  return c;
+}
+const CLOUD_R=6378137+60000;
+const cloudEntity=viewer.entities.add({
+  position:new Cesium.ConstantPositionProperty(Cesium.Cartesian3.ZERO),
+  show:false,
+  ellipsoid:{
+    radii:new Cesium.Cartesian3(CLOUD_R,CLOUD_R,CLOUD_R-21000),
+    material:new Cesium.ImageMaterialProperty({image:makeCloudCanvas(),transparent:true}),
+    outline:false,slicePartitions:96,stackPartitions:48
+  }
+});
+$('t-clouds').addEventListener('change',e=>{
+  cloudEntity.show=e.target.checked&&cameraHeight()>CLOUD_FADE_ALT;
+  scene.requestRender();
+});
+
+/* ---------------- flight traffic ---------------- */
+const flightPoints=scene.primitives.add(new Cesium.PointPrimitiveCollection());
+flightPoints.show=false;
+let simTimer=null,simFlights=null;
+const FLIGHT_COLOR=Cesium.Color.fromCssColorString('#6fd3ff');
+
+function clearFlights(){
+  flightPoints.removeAll();
+  if(simTimer){clearInterval(simTimer);simTimer=null;}
+  $('s-flights').textContent='';
+}
+async function loadFlights(){
+  clearFlights();
+  $('flightsub').textContent='contacting OpenSky…';
+  try{
+    const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),12000);
+    const r=await fetch(OPENSKY_URL,{signal:ctrl.signal});clearTimeout(to);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const states=(d.states||[]).filter(s=>s[5]!=null&&s[6]!=null);
+    if(!states.length)throw new Error('empty');
+    const max=2500,step=Math.max(1,Math.floor(states.length/max));
+    let n=0;
+    for(let i=0;i<states.length;i+=step){
+      const s=states[i];
+      flightPoints.add({
+        position:Cesium.Cartesian3.fromDegrees(s[5],s[6],(s[7]||s[13]||10000)),
+        pixelSize:2.6,color:FLIGHT_COLOR,
+        scaleByDistance:new Cesium.NearFarScalar(2e5,2.2,2e7,0.7)
+      });
+      n++;
+    }
+    $('flightsub').textContent='live via OpenSky';
+    $('s-flights').textContent='✈ '+n.toLocaleString()+' live aircraft';
+  }catch(err){
+    simulateFlights();
+    $('flightsub').textContent='simulated (OpenSky busy)';
+    toast('Live flight feed unavailable right now — showing simulated great-circle traffic instead.');
+  }
+  scene.requestRender();
+}
+function simulateFlights(){
+  const hubs=[[-93.2,44.9],[-87.9,41.98],[-73.8,40.6],[-118.4,33.9],[-122.4,37.6],[-104.7,39.8],
+    [-0.45,51.47],[2.55,49.0],[8.57,50.05],[4.76,52.31],[-3.57,40.49],[12.25,41.8],
+    [28.75,41.27],[55.36,25.25],[51.61,25.27],[77.1,28.55],[72.87,19.09],[100.75,13.69],
+    [103.99,1.36],[113.91,22.31],[121.8,31.15],[116.6,40.07],[139.78,35.55],[126.45,37.46],
+    [151.18,-33.95],[144.84,-37.67],[-43.25,-22.81],[-58.54,-34.82],[-99.07,19.44],[18.6,-33.97],
+    [36.85,-1.32],[31.4,30.12],[-79.63,43.68],[-123.18,49.19],[174.78,-37.0],[67.0,24.9]];
+  simFlights=[];
+  for(let i=0;i<220;i++){
+    const a=hubs[Math.floor(Math.random()*hubs.length)];
+    let b=hubs[Math.floor(Math.random()*hubs.length)];
+    if(b===a)b=hubs[(hubs.indexOf(a)+7)%hubs.length];
+    const geo=new Cesium.EllipsoidGeodesic(
+      Cesium.Cartographic.fromDegrees(a[0],a[1]),Cesium.Cartographic.fromDegrees(b[0],b[1]));
+    const pt=flightPoints.add({
+      position:Cesium.Cartesian3.fromDegrees(a[0],a[1],10500),
+      pixelSize:2.6,color:FLIGHT_COLOR,
+      scaleByDistance:new Cesium.NearFarScalar(2e5,2.2,2e7,0.7)
+    });
+    simFlights.push({geo,pt,f:Math.random(),v:0.0018+Math.random()*0.004});
+  }
+  $('s-flights').textContent='✈ '+simFlights.length+' simulated aircraft';
+  simTimer=setInterval(()=>{
+    if(!flightPoints.show)return;
+    for(const fl of simFlights){
+      fl.f+=fl.v;if(fl.f>1)fl.f-=1;
+      const c=fl.geo.interpolateUsingFraction(fl.f);
+      fl.pt.position=Cesium.Cartesian3.fromRadians(c.longitude,c.latitude,10500);
+    }
+    scene.requestRender();
+  },1000);
+}
+$('t-flights').addEventListener('change',e=>{
+  flightPoints.show=e.target.checked;
+  if(e.target.checked)loadFlights();else{clearFlights();$('flightsub').textContent='live via OpenSky';}
+  scene.requestRender();
+});
+
+/* ---------------- countries: borders, hover, stats ---------------- */
+const featureByName=new Map(),featureById=new Map(),searchIndex=[];
+const outlineDS=new Cesium.CustomDataSource('outlines');
+viewer.dataSources.add(outlineDS);
+const BASE_FILL=Cesium.Color.WHITE.withAlpha(0.008);
+const HOVER_FILL=Cesium.Color.fromCssColorString('#ffc24b').withAlpha(0.20);
+const OUTLINE_COLOR=Cesium.Color.fromCssColorString('#ffc24b');
+let countryDS=null,hovered=null;
+
+function ringsOf(feature){
+  const g=feature.geometry,rings=[];
+  if(g.type==='Polygon')rings.push(g.coordinates[0]);
+  else if(g.type==='MultiPolygon')for(const p of g.coordinates)rings.push(p[0]);
+  return rings;
+}
+function bboxOf(feature){
+  let lats=[],lons=[];
+  for(const ring of ringsOf(feature))for(const[lo,la]of ring){lons.push(lo);lats.push(la);}
+  let w=Math.min(...lons),e=Math.max(...lons);
+  const s=Math.min(...lats),n=Math.max(...lats);
+  if(e-w>180){ // crosses the antimeridian — rebuild in 0..360 space
+    const l2=lons.map(l=>l<0?l+360:l);
+    w=Math.min(...l2);e=Math.max(...l2);
+    if(w>180)w-=360; if(e>180)e-=360;
+  }
+  return{w,s,e,n};
+}
+function showOutline(feature){
+  outlineDS.entities.removeAll();
+  if(!feature)return;
+  let count=0;
+  for(const ring of ringsOf(feature)){
+    if(++count>80)break;
+    if(ring.length<3)continue;
+    const flat=[];
+    for(const[lo,la]of ring){flat.push(lo,la);}
+    outlineDS.entities.add({polyline:{
+      positions:Cesium.Cartesian3.fromDegreesArray(flat),
+      clampToGround:true,width:2.6,
+      material:OUTLINE_COLOR
+    }});
+  }
+}
+function statsFor(feature){
+  return STATS[feature.id]||null;
+}
+function showPlate(feature,x,y){
+  const st=statsFor(feature);
+  $('p-name').textContent=feature.properties.name;
+  $('p-iso').textContent=(feature.id&&feature.id!=='-99')?feature.id:'···';
+  $('p-area').textContent=fmtArea(st?st.a:null);
+  $('p-pop').textContent=fmtPop(st?st.p:null);
+  $('p-gdp').textContent=fmtGdp(st?st.g:null);
+  const pl=$('plate');pl.style.display='block';
+  const pw=pl.offsetWidth,ph=pl.offsetHeight,vw=innerWidth,vh=innerHeight;
+  let px=x+18,py=y+18;
+  if(px+pw>vw-10)px=x-pw-14;
+  if(py+ph>vh-44)py=y-ph-14;
+  pl.style.left=Math.max(8,px)+'px';pl.style.top=Math.max(8,py)+'px';
+}
+function hidePlate(){$('plate').style.display='none';}
+
+function setHover(entity,x,y){
+  if(entity===hovered){
+    if(entity)showPlate(featureOf(entity),x,y);
+    return;
+  }
+  if(hovered&&hovered.polygon)hovered.polygon.material=BASE_FILL;
+  hovered=entity;
+  if(entity){
+    if(entity.polygon)entity.polygon.material=HOVER_FILL;
+    const f=featureOf(entity);
+    showOutline(f);showPlate(f,x,y);
+    $('s-focus').textContent=f.properties.name.toLowerCase();
+  }else{
+    showOutline(null);hidePlate();
+    $('s-focus').textContent='orbit';
+  }
+  scene.requestRender();
+}
+function featureOf(entity){
+  const nm=entity.properties&&entity.properties.name?entity.properties.name.getValue():null;
+  return featureByName.get(nm)||null;
+}
+
+async function loadCountries(){
+  const r=await fetch(GEOJSON_URL);
+  if(!r.ok)throw new Error('borders HTTP '+r.status);
+  const gj=await r.json();
+  for(const f of gj.features){
+    featureByName.set(f.properties.name,f);
+    if(f.id)featureById.set(f.id,f);
+    f._bbox=bboxOf(f);
+    searchIndex.push({name:f.properties.name,iso:f.id||'',f});
+  }
+  searchIndex.sort((a,b)=>a.name.localeCompare(b.name));
+  countryDS=await Cesium.GeoJsonDataSource.load(gj,{
+    clampToGround:true,fill:BASE_FILL,stroke:Cesium.Color.TRANSPARENT
+  });
+  await viewer.dataSources.add(countryDS);
+}
+
+/* hover / tap picking */
+const handler=new Cesium.ScreenSpaceEventHandler(scene.canvas);
+function pickCountry(pos){
+  const picked=scene.pick(pos);
+  if(picked&&picked.id instanceof Cesium.Entity&&countryDS&&
+     countryDS.entities.contains(picked.id)&&featureOf(picked.id))return picked.id;
+  return null;
+}
+let lastMove=0;
+handler.setInputAction(m=>{
+  const now=performance.now();
+  if(now-lastMove<40)return;        // throttle picking
+  lastMove=now;
+  setHover(pickCountry(m.endPosition),m.endPosition.x,m.endPosition.y);
+},Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+handler.setInputAction(c=>{          // tap support on touch devices
+  const e=pickCountry(c.position);
+  setHover(e,c.position.x,c.position.y);
+},Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+/* ---------------- search with autocomplete ---------------- */
+const searchEl=$('search'),suggEl=$('suggest');
+let suggItems=[],activeIdx=-1;
+function renderSuggest(items){
+  suggItems=items;activeIdx=-1;
+  if(!items.length){suggEl.style.display='none';searchEl.setAttribute('aria-expanded','false');return;}
+  suggEl.innerHTML='';
+  items.forEach((it,i)=>{
+    const b=document.createElement('button');
+    b.type='button';b.setAttribute('role','option');
+    b.innerHTML=`<span>${it.name}</span><span class="iso">${it.iso&&it.iso!=='-99'?it.iso:''}</span>`;
+    b.addEventListener('click',()=>selectCountry(it));
+    suggEl.appendChild(b);
+  });
+  suggEl.style.display='block';searchEl.setAttribute('aria-expanded','true');
+}
+function markActive(){
+  [...suggEl.children].forEach((c,i)=>c.classList.toggle('active',i===activeIdx));
+  if(activeIdx>=0)suggEl.children[activeIdx].scrollIntoView({block:'nearest'});
+}
+searchEl.addEventListener('input',()=>{
+  const q=searchEl.value.trim().toLowerCase();
+  if(!q){renderSuggest([]);return;}
+  const starts=[],contains=[];
+  for(const it of searchIndex){
+    const n=it.name.toLowerCase();
+    if(n.startsWith(q))starts.push(it);
+    else if(n.includes(q)||it.iso.toLowerCase()===q)contains.push(it);
+  }
+  renderSuggest(starts.concat(contains).slice(0,8));
+});
+searchEl.addEventListener('keydown',e=>{
+  if(suggEl.style.display!=='block')return;
+  if(e.key==='ArrowDown'){e.preventDefault();activeIdx=Math.min(activeIdx+1,suggItems.length-1);markActive();}
+  else if(e.key==='ArrowUp'){e.preventDefault();activeIdx=Math.max(activeIdx-1,0);markActive();}
+  else if(e.key==='Enter'){e.preventDefault();selectCountry(suggItems[Math.max(activeIdx,0)]);}
+  else if(e.key==='Escape'){renderSuggest([]);}
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#searchwrap'))renderSuggest([]);
+});
+function selectCountry(it){
+  if(!it)return;
+  searchEl.value=it.name;renderSuggest([]);searchEl.blur();
+  flyToFeature(it.f);
+}
+function flyToFeature(f){
+  const b=f._bbox;
+  const padLon=Math.max((((b.e-b.w)+360)%360)*0.12,0.4);
+  const padLat=Math.max((b.n-b.s)*0.12,0.4);
+  const rect=Cesium.Rectangle.fromDegrees(b.w-padLon,Math.max(b.s-padLat,-89),
+                                          b.e+padLon,Math.min(b.n+padLat,89));
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  camera.flyTo({destination:rect,duration:reduced?0.2:2.0,
+    complete:()=>{
+      // highlight + plate pinned near the top of the view
+      const ent=entityForFeature(f);
+      setHover(ent,innerWidth/2,Math.min(140,innerHeight*0.25));
+    }});
+  $('s-focus').textContent=f.properties.name.toLowerCase();
+}
+function entityForFeature(f){
+  if(!countryDS)return null;
+  for(const e of countryDS.entities.values){
+    if(e.properties&&e.properties.name&&e.properties.name.getValue()===f.properties.name)return e;
+  }
+  return null;
+}
+
+/* ---------------- instrument strip + altitude fades ---------------- */
+const CLOUD_FADE_ALT=110000;
+function cameraHeight(){return camera.positionCartographic.height;}
+function applyAltitudeFades(){
+  const h=cameraHeight();
+  // ducking under the cloud deck shouldn't leave you inside fog
+  if($('t-clouds').checked)cloudEntity.show=h>CLOUD_FADE_ALT;
+  // at street level, let OSM shine through the night layer so streets stay visible
+  if(mode==='night'&&nightLayer){
+    const t=Math.min(Math.max((h-50000)/250000,0),1); // 0 near ground → 1 in orbit
+    nightLayer.alpha=0.25+0.75*t;
+    osmLayer.alpha=1;
+  }
+}
+camera.percentageChanged=0.03;
+camera.changed.addEventListener(()=>{
+  const c=camera.positionCartographic;
+  $('s-lat').textContent=Cesium.Math.toDegrees(c.latitude).toFixed(3)+'°';
+  $('s-lon').textContent=Cesium.Math.toDegrees(c.longitude).toFixed(3)+'°';
+  const h=c.height;
+  $('s-alt').textContent=h>=1e6?(h/1e6).toFixed(2)+' Mm':h>=1000?(h/1000).toFixed(1)+' km':Math.round(h)+' m';
+  applyAltitudeFades();
+});
+
+$('resetview').addEventListener('click',()=>{
+  setHover(null,0,0);
+  camera.flyTo({destination:HOME,duration:1.6});
+});
+
+/* ---------------- boot ---------------- */
+(async()=>{
+  try{await loadCountries();}
+  catch(err){toast('Country borders failed to load ('+err.message+'). Check your connection and refresh.');}
+  $('loader').classList.add('gone');
+  camera.changed.raiseEvent();
+  scene.requestRender();
+})();
+</script>
+</body>
+</html>
