@@ -278,7 +278,7 @@ computeScales();
 // ===========================================================
 //  MAP LAYER (countries gray + US states green), pre-rendered
 // ===========================================================
-let mapCanvas=null, mapReady=false;
+let mapLayers=null, mapReady=false;
 async function loadMaps(){
   if(!hasD3 || typeof topojson === "undefined"){ buildMapLayer(); return; }
   let countryPaths=null, countryBorders=null, statePaths=null, stateBorders=null;
@@ -299,21 +299,9 @@ async function loadMaps(){
   buildMapLayer(countryPaths, countryBorders, statePaths, stateBorders);
 }
 function buildMapLayer(countryPaths, countryBorders, statePaths, stateBorders){
-  mapCanvas = document.createElement("canvas");
-  mapCanvas.width = WORLD_W; mapCanvas.height = WORLD_H;
-  const mx = mapCanvas.getContext("2d");
-  if(countryPaths){
-    mx.fillStyle = "#5c6776";                       // other countries: gray
-    for(const p of countryPaths) mx.fill(p);
-    mx.lineWidth = 1; mx.strokeStyle = "rgba(18,28,44,0.55)";
-    if(countryBorders) mx.stroke(countryBorders);
-  }
-  if(statePaths){
-    mx.fillStyle = "#2f7d4f";                        // USA: friendly green
-    for(const p of statePaths) mx.fill(p);
-    mx.lineWidth = 1.1; mx.strokeStyle = "rgba(255,255,255,0.6)";
-    if(stateBorders) mx.stroke(stateBorders);
-  }
+  // Keep the vector paths and draw them live each frame (crisp at any zoom)
+  // instead of pre-rasterizing to a fixed-resolution image.
+  mapLayers = { countryPaths, countryBorders, statePaths, stateBorders };
   mapReady = !!(countryPaths || statePaths);
 }
 loadMaps();
@@ -597,10 +585,25 @@ function draw(){
   ctx.scale(cam.zoom, cam.zoom);
   ctx.translate(-cam.x, -cam.y);
 
-  // land
-  if(mapCanvas){
-    ctx.imageSmoothingEnabled=true;
-    ctx.drawImage(mapCanvas, 0, 0);
+  // land — drawn as vectors every frame so it stays sharp at any zoom level
+  if(mapLayers){
+    ctx.lineJoin="round"; ctx.lineCap="round";
+    if(mapLayers.countryPaths){
+      ctx.fillStyle="#5c6776";                        // other countries: gray
+      for(const p of mapLayers.countryPaths) ctx.fill(p);
+      if(mapLayers.countryBorders){
+        ctx.lineWidth=1.1/cam.zoom; ctx.strokeStyle="rgba(18,28,44,0.55)";
+        ctx.stroke(mapLayers.countryBorders);
+      }
+    }
+    if(mapLayers.statePaths){
+      ctx.fillStyle="#2f7d4f";                         // USA: friendly green
+      for(const p of mapLayers.statePaths) ctx.fill(p);
+      if(mapLayers.stateBorders){
+        ctx.lineWidth=1.3/cam.zoom; ctx.strokeStyle="rgba(255,255,255,0.65)";
+        ctx.stroke(mapLayers.stateBorders);
+      }
+    }
   } else {
     ctx.strokeStyle="rgba(255,255,255,0.12)"; ctx.lineWidth=1/cam.zoom;
     for(let x=0;x<=WORLD_W;x+=120){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_H); ctx.stroke(); }
