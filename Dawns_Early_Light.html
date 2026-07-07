@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Dawn's Early Light — Defend Fort McHenry</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; background:#0b1026; touch-action:none; overscroll-behavior:none;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #c { position:fixed; inset:0; display:block; }
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; top:0; left:0; right:0; padding:calc(env(safe-area-inset-top, 0px) + 8px) 10px 6px;
+    display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5;
+    color:#f5ecd7; text-shadow:0 1px 3px rgba(0,0,0,.8); }
+  #hud .left { font-size:13px; line-height:1.35; }
+  #hud .left b { font-size:15px; letter-spacing:.5px; }
+  #hud .right { text-align:right; font-size:13px; }
+  #score { font-size:20px; font-weight:bold; }
+  #streak { color:#ffd76a; font-size:12px; min-height:14px; }
+  #hpwrap { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom,0px) + 10px);
+    width:min(70vw,320px); z-index:5; pointer-events:none; }
+  #hplabel { color:#f5ecd7; font-size:11px; text-align:center; letter-spacing:2px; text-shadow:0 1px 3px #000; margin-bottom:3px; }
+  #hpbar { height:12px; border:2px solid #f5ecd7; border-radius:7px; overflow:hidden; background:rgba(0,0,0,.45); }
+  #hpfill { height:100%; width:100%; background:linear-gradient(90deg,#b22234,#e8394f); transition:width .25s; }
+  #mute { position:fixed; top:calc(env(safe-area-inset-top,0px) + 6px); right:8px; z-index:20; background:rgba(0,0,0,.35);
+    color:#f5ecd7; border:1px solid rgba(245,236,215,.5); border-radius:8px; font-size:16px; padding:6px 10px; pointer-events:auto; }
+  /* ---------- banners ---------- */
+  #lyric { position:fixed; top:26%; left:0; right:0; text-align:center; padding:0 24px; z-index:6; pointer-events:none;
+    color:#fff3d6; font-style:italic; font-size:clamp(19px,5.6vw,30px); text-shadow:0 2px 12px rgba(0,0,0,.9), 0 0 30px rgba(255,180,60,.35);
+    opacity:0; transition:opacity .6s; }
+  #salvo { position:fixed; top:38%; left:0; right:0; text-align:center; z-index:6; pointer-events:none; display:none;
+    color:#ff5a5a; font-weight:bold; font-size:clamp(18px,5.5vw,28px); letter-spacing:2px; text-shadow:0 0 18px rgba(255,0,0,.7);
+    animation:blink .5s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  #brace { position:fixed; bottom:calc(env(safe-area-inset-bottom,0px) + 44px); left:0; right:0; text-align:center; z-index:6;
+    color:#8fd0ff; font-size:13px; letter-spacing:2px; text-shadow:0 1px 4px #000; display:none; pointer-events:none; }
+  /* ---------- overlays ---------- */
+  .ov { position:fixed; inset:0; z-index:10; display:none; align-items:center; justify-content:center;
+    background:rgba(5,8,22,.82); backdrop-filter:blur(3px); padding:18px; }
+  .ov.show { display:flex; }
+  .card { max-width:480px; width:100%; max-height:88vh; overflow-y:auto; background:linear-gradient(#f8f0dc,#efe2c4);
+    border:2px solid #8a6d3b; border-radius:14px; padding:22px 20px; color:#2b2114; box-shadow:0 12px 50px rgba(0,0,0,.7); }
+  .card h1 { font-size:26px; text-align:center; color:#7a1f2b; letter-spacing:.5px; }
+  .card h2 { font-size:20px; text-align:center; color:#7a1f2b; }
+  .card .sub { text-align:center; font-style:italic; color:#6b5636; font-size:14px; margin:4px 0 12px; }
+  .card p { font-size:15px; line-height:1.55; margin:10px 0; }
+  .card .fact { background:rgba(122,31,43,.08); border-left:4px solid #7a1f2b; padding:10px 12px; border-radius:0 8px 8px 0; }
+  .card .verse { font-style:italic; text-align:center; line-height:1.7; color:#3d2f1a; font-size:15px; margin:12px 0; }
+  .card ul { margin:8px 0 8px 20px; font-size:14px; line-height:1.55; }
+  button.go { display:block; margin:16px auto 2px; background:#7a1f2b; color:#f8f0dc; border:none; border-radius:10px;
+    font-family:inherit; font-size:18px; padding:13px 34px; letter-spacing:1px; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  button.go:active { transform:scale(.97); }
+  .howto { display:flex; gap:10px; justify-content:center; margin:12px 0; flex-wrap:wrap; }
+  .howto div { background:rgba(43,33,20,.07); border:1px solid #c9b98f; border-radius:10px; padding:8px 12px; font-size:13px; text-align:center; min-width:120px; }
+  .howto b { display:block; font-size:15px; color:#7a1f2b; }
+  .stats { display:flex; justify-content:center; gap:18px; text-align:center; margin:10px 0; }
+  .stats b { display:block; font-size:22px; color:#7a1f2b; }
+  .stats span { font-size:12px; color:#6b5636; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" style="display:none">
+  <div class="left"><b id="wname"></b><br><span id="wtime"></span></div>
+  <div class="right"><div id="score">0</div><div id="streak"></div></div>
+</div>
+<div id="hpwrap" style="display:none">
+  <div id="hplabel">RAMPARTS</div>
+  <div id="hpbar"><div id="hpfill"></div></div>
+</div>
+<button id="mute">🔊</button>
+<div id="lyric"></div>
+<div id="salvo">⚠ SALVO INCOMING ⚠<br><span style="font-size:.65em;color:#ffd0d0">HOLD ANYWHERE TO BRACE</span></div>
+<div id="brace">HOLDING — RAMPARTS BRACED</div>
+
+<!-- Title -->
+<div class="ov show" id="ovTitle">
+  <div class="card">
+    <h1>Dawn's Early Light</h1>
+    <div class="sub">Fort McHenry, Baltimore — September 13–14, 1814</div>
+    <p>The British fleet that burned Washington has come for Baltimore. Only <b>Fort McHenry</b>, commanded by <b>Major George Armistead</b> and about 1,000 defenders, guards the harbor. Survive the 25-hour bombardment — the very battle that inspired Francis Scott Key to write <i>"The Star-Spangled Banner."</i></p>
+    <div class="howto">
+      <div><b>TAP</b> shells &amp; rockets to burst them in air</div>
+      <div><b>HOLD</b> during a salvo to brace the ramparts</div>
+      <div><b>TAP ×2</b> night barges before they land</div>
+    </div>
+    <p class="fact" style="font-size:13px">Every wave is drawn from the real timeline of the battle — real ships, real names, real hours.</p>
+    <button class="go" id="btnStart">TO THE RAMPARTS</button>
+  </div>
+</div>
+
+<!-- Fact card -->
+<div class="ov" id="ovFact">
+  <div class="card">
+    <h2 id="fTitle"></h2>
+    <div class="sub" id="fTime"></div>
+    <p id="fBody"></p>
+    <button class="go" id="btnWave">BEGIN</button>
+  </div>
+</div>
+
+<!-- Defeat -->
+<div class="ov" id="ovLose">
+  <div class="card">
+    <h2>The Ramparts Have Fallen</h2>
+    <div class="sub">…but history held firm.</div>
+    <p class="fact">In reality, Fort McHenry endured. Despite 1,500–1,800 British rounds over 25 hours, its walls, water batteries, and a line of deliberately sunken ships kept the fleet at bay — only 4 defenders were killed and 24 wounded.</p>
+    <p>Stand your ground the way Armistead's garrison did.</p>
+    <button class="go" id="btnRetry">RETRY THIS WAVE</button>
+  </div>
+</div>
+
+<!-- Victory -->
+<div class="ov" id="ovWin">
+  <div class="card">
+    <h2>O Say, Can You See…</h2>
+    <div class="sub">7:00 A.M., September 14, 1814 — the guns fall silent</div>
+    <p>As the smoke clears, Armistead's men haul down the tattered storm flag and raise <b>Mary Pickersgill's great garrison flag</b> — 30 by 42 feet, 15 stars and 15 stripes. Eight miles down the Patapsco, watching from a truce ship, the lawyer <b>Francis Scott Key</b> sees it and begins scribbling verses on the back of a letter.</p>
+    <div class="verse">And the rockets' red glare, the bombs bursting in air,<br>
+    Gave proof through the night that our flag was still there;<br>
+    O say does that star-spangled banner yet wave<br>
+    O'er the land of the free and the home of the brave?</div>
+    <div class="stats">
+      <div><b id="stScore">0</b><span>SCORE</span></div>
+      <div><b id="stHit">0</b><span>INTERCEPTED</span></div>
+      <div><b id="stHp">0%</b><span>RAMPARTS LEFT</span></div>
+    </div>
+    <p class="fact" style="font-size:13.5px"><b>What really happened:</b></p>
+    <ul>
+      <li>Key's poem, <i>"Defence of Fort M'Henry,"</i> was printed on Sept. 17, 1814, and set to the English tune <i>"To Anacreon in Heaven."</i></li>
+      <li>It became the official U.S. national anthem only in <b>1931</b>, 117 years later.</li>
+      <li>The garrison flag — with one star snipped away by souvenir hunters — hangs today in the Smithsonian's National Museum of American History.</li>
+    </ul>
+    <button class="go" id="btnAgain">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================= setup ================= */
+const cv = document.getElementById('c'), cx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize); resize();
+
+const $ = id => document.getElementById(id);
+const rnd = (a,b) => a + Math.random()*(b-a);
+
+/* ================= audio ================= */
+let AC = null, muted = false;
+function audio(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC && AC.state==='suspended') AC.resume(); }
+function tone(freq, dur, type, vol, slide){
+  if(muted || !AC) return;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.value = freq;
+  if(slide) o.frequency.exponentialRampToValueAtTime(slide, AC.currentTime + dur);
+  g.gain.setValueAtTime(vol, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(); o.stop(AC.currentTime + dur);
+}
+function noise(dur, vol, lowpass){
+  if(muted || !AC) return;
+  const n = AC.sampleRate * dur, buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+  const s = AC.createBufferSource(); s.buffer = buf;
+  const f = AC.createBiquadFilter(); f.type='lowpass'; f.frequency.value = lowpass;
+  const g = AC.createGain(); g.gain.value = vol;
+  s.connect(f); f.connect(g); g.connect(AC.destination); s.start();
+}
+const sPop   = () => { noise(.12,.35,3200); tone(600,.1,'square',.12,150); };
+const sBoom  = () => { noise(.5,.55,420); tone(90,.4,'sine',.3,40); };
+const sAlarm = () => { tone(880,.16,'square',.1); setTimeout(()=>tone(880,.16,'square',.1),220); };
+const sWhoosh= () => { noise(.3,.15,1800); };
+$('mute').addEventListener('click', e => { e.stopPropagation(); muted = !muted; $('mute').textContent = muted ? '🔇' : '🔊'; });
+
+/* ================= wave data (real history) ================= */
+const WAVES = [
+ { name:"The Bombardment Begins", time:"Sept. 13, 1814 — 6:30 A.M.", sky:'morning',
+   dur:28, shellEvery:1.9, rocketEvery:0, salvos:0, barges:0,
+   lyric:"“O say can you see, by the dawn's early light…”",
+   fTitle:"The Attack Begins",
+   fBody:"At first light on September 13, 1814, five British bomb ships — HMS Terror, Volcano, Meteor, Devastation and Aetna — anchor in the Patapsco River and open fire. Their mortars hurl shells weighing up to 190 pounds, fused to explode over the fort. TAP each shell to burst it in the air before it strikes the ramparts." },
+ { name:"The Rockets' Red Glare", time:"Sept. 13 — Afternoon", sky:'day',
+   dur:32, shellEvery:2.4, rocketEvery:2.7, salvos:1, barges:0,
+   lyric:"“And the rockets' red glare…”",
+   fTitle:"HMS Erebus",
+   fBody:"The rocket ship HMS Erebus joins in, firing Congreve rockets — shrieking, fire-tailed, and wildly inaccurate. They gave Key the line 'the rockets' red glare.' Rockets fly FAST and low, so tap quickly. And when a SALVO warning flashes, those shells can't be stopped — HOLD anywhere on screen to brace the ramparts and cut the damage." },
+ { name:"Bombs Bursting in Air", time:"Sept. 13 — Evening", sky:'dusk',
+   dur:36, shellEvery:1.5, rocketEvery:3.4, salvos:2, barges:0,
+   lyric:"“The bombs bursting in air…”",
+   fTitle:"Out of Range",
+   fBody:"Major George Armistead's gunners can barely answer — the British fleet sits about two miles out, beyond the reach of most of the fort's cannon. The garrison of roughly 1,000 must simply endure. Over 25 hours the British will fire some 1,500 to 1,800 rounds at Fort McHenry." },
+ { name:"The Night Attack", time:"Sept. 14 — 1:00 A.M.", sky:'night',
+   dur:38, shellEvery:4.5, rocketEvery:4.2, salvos:0, barges:6,
+   lyric:"“Gave proof through the night that our flag was still there…”",
+   fTitle:"Ferry Branch",
+   fBody:"Around 1 A.M., in rain and darkness, Captain Charles Napier leads about 1,200 men in small boats up the Ferry Branch, hoping to slip behind the fort. Gunners at Fort Covington and Battery Babcock spot the flotilla and open fire. TAP each landing barge TWICE before it reaches the shore!" },
+ { name:"By the Dawn's Early Light", time:"Sept. 14 — 4:00 A.M.", sky:'predawn',
+   dur:38, shellEvery:1.3, rocketEvery:2.4, salvos:3, barges:0,
+   lyric:"“O say does that star-spangled banner yet wave…”",
+   fTitle:"The Final Fury",
+   fBody:"Their night attack repulsed, the British pour out their heaviest fire before withdrawing. Eight miles downriver, a 35-year-old American lawyer named Francis Scott Key — detained aboard a truce ship after negotiating the release of Dr. William Beanes — watches through the darkness, unable to look away. Hold the fort until 7 A.M.!" }
+];
+
+/* ================= game state ================= */
+let state = 'title';           // title | fact | play | win | lose
+let waveIx = 0, wave = null;
+let hp = 100, score = 0, streak = 0, intercepts = 0;
+let t = 0, last = 0, waveT = 0;
+let shells = [], rockets = [], barges = [], parts = [], pops = [];
+let nextShell = 0, nextRocket = 0, salvoTimes = [], salvoQueue = 0, salvoWarnT = 0;
+let holding = false, shake = 0, flash = 0;
+let winT = 0;
+
+const horizon = () => H * 0.50;
+const shoreY  = () => H * 0.78;
+const fortY   = () => H * 0.80;
+
+function setHUD(){
+  $('wname').textContent = wave ? wave.name : '';
+  $('wtime').textContent = wave ? wave.time : '';
+  $('score').textContent = score;
+  $('streak').textContent = streak >= 3 ? '🔥 streak ×' + (1 + Math.min(streak,10)*0.1).toFixed(1) : '';
+  $('hpfill').style.width = Math.max(0,hp) + '%';
+}
+function showLyric(txt, ms){
+  const el = $('lyric'); el.textContent = txt; el.style.opacity = 1;
+  clearTimeout(el._t); el._t = setTimeout(()=> el.style.opacity = 0, ms || 3400);
+}
+function popup(x,y,txt,col){ pops.push({x,y,txt,col,t:0}); }
+
+/* ================= wave control ================= */
+function showFact(ix){
+  state = 'fact'; waveIx = ix;
+  const w = WAVES[ix];
+  $('fTitle').textContent = w.fTitle;
+  $('fTime').textContent = w.time;
+  $('fBody').textContent = w.fBody;
+  $('btnWave').textContent = 'BEGIN — ' + w.name.toUpperCase();
+  $('ovFact').classList.add('show');
+}
+function startWave(){
+  $('ovFact').classList.remove('show');
+  wave = WAVES[waveIx];
+  state = 'play'; waveT = 0;
+  shells = []; rockets = []; barges = [];
+  nextShell = 1.2; nextRocket = 2.5;
+  salvoQueue = 0; salvoWarnT = 0;
+  salvoTimes = [];
+  for(let i = 0; i < (wave.salvos||0); i++) salvoTimes.push(wave.dur * (i+1) / (wave.salvos+1));
+  let bn = wave.barges || 0, bt = [];
+  for(let i=0;i<bn;i++) bt.push(3 + i * (wave.dur-8) / bn);
+  wave._bargeTimes = bt;
+  $('salvo').style.display = 'none'; $('brace').style.display = 'none'; holding = false;
+  $('hud').style.display = 'flex'; $('hpwrap').style.display = 'block';
+  showLyric(wave.lyric, 3800);
+  setHUD();
+}
+function endWave(){
+  if(waveIx + 1 < WAVES.length){ showFact(waveIx + 1); }
+  else {
+    state = 'win'; winT = 0;
+    setTimeout(()=>{
+      $('stScore').textContent = score;
+      $('stHit').textContent = intercepts;
+      $('stHp').textContent = Math.max(0,Math.round(hp)) + '%';
+      $('ovWin').classList.add('show');
+    }, 4200);
+  }
+}
+function damage(n){
+  if(holding && salvoQueue >= 0) { /* brace only softens salvo shells; handled at call site */ }
+  hp -= n; flash = .35; shake = Math.min(14, shake + n);
+  sBoom();
+  if(hp <= 0){ hp = 0; state = 'lose'; $('ovLose').classList.add('show'); }
+  setHUD();
+}
+
+/* ================= spawning ================= */
+function spawnShell(salvo){
+  const sx = rnd(W*0.1, W*0.9), sy = horizon() - rnd(4,10);
+  const tx = rnd(W*0.18, W*0.82), ty = fortY() + rnd(0, H*0.06);
+  const apex = rnd(H*0.08, H*0.22);
+  shells.push({ sx, sy, tx, ty, apex, t:0, dur: salvo ? rnd(2.4,3.0) : rnd(3.4,4.6), salvo:!!salvo, r: salvo?9:11 });
+}
+function spawnRocket(){
+  const fromLeft = Math.random() < 0.5;
+  const sx = fromLeft ? -20 : W+20, sy = horizon() - rnd(30, H*0.12);
+  const tx = rnd(W*0.2, W*0.8), ty = fortY() + rnd(0, H*0.05);
+  rockets.push({ x:sx, y:sy, sx, sy, tx, ty, t:0, dur:rnd(1.7,2.2), wob:rnd(2,5), r:8 });
+  sWhoosh();
+}
+function spawnBarge(){
+  const x = rnd(W*0.15, W*0.85);
+  barges.push({ x, y: horizon()+8, tx: x + rnd(-40,40), hp:2, t:0, dur:rnd(8,10), hit:0 });
+}
+
+/* ================= input ================= */
+function pt(e){
+  const src = (e.touches && e.touches[0]) || e;
+  return { x: src.clientX, y: src.clientY };
+}
+function tryHit(x,y){
+  const R = 46;
+  let best = null, bd = 1e9;
+  const consider = (o,px,py,list,ix) => { const d = Math.hypot(px-x, py-y); if(d < R + o.r && d < bd){ bd = d; best = {o,list,ix}; } };
+  shells.forEach((s,i)=>{ if(!s.salvo){ const p = shellPos(s); consider(s,p.x,p.y,shells,i); } });
+  rockets.forEach((r,i)=> consider(r, r.x, r.y, rockets, i));
+  barges.forEach((b,i)=>{ const p = bargePos(b); const d = Math.hypot(p.x-x,p.y-y); if(d < 46+34 && d < bd){ bd=d; best={o:b,list:barges,ix:i,barge:true,px:p.x,py:p.y}; } });
+  if(!best) return false;
+  if(best.barge){
+    const b = best.o; b.hp--; b.hit = .3;
+    if(b.hp <= 0){
+      barges.splice(best.ix,1); burst(best.px,best.py,'#7fd0ff',26); sPop();
+      streak++; const pts = Math.round(250 * mult()); score += pts; intercepts++;
+      popup(best.px,best.py,'+'+pts,'#7fd0ff');
+    } else { burst(best.px,best.py,'#cfe8ff',10); sPop(); popup(best.px,best.py,'HIT!','#cfe8ff'); }
+  } else if(best.list === shells){
+    const s = best.o, p = shellPos(s);
+    shells.splice(best.ix,1); burst(p.x,p.y,'#ffb347',24); sPop();
+    streak++; const pts = Math.round(100 * mult()); score += pts; intercepts++;
+    popup(p.x,p.y,'+'+pts,'#ffd76a');
+  } else {
+    const r = best.o;
+    rockets.splice(best.ix,1); burst(r.x,r.y,'#ff6a5a',22); sPop();
+    streak++; const pts = Math.round(150 * mult()); score += pts; intercepts++;
+    popup(r.x,r.y,'+'+pts,'#ff9a8a');
+  }
+  setHUD();
+  return true;
+}
+const mult = () => 1 + Math.min(streak,10) * 0.1;
+
+function down(e){
+  audio();
+  if(state !== 'play') return;
+  e.preventDefault();
+  const p = pt(e);
+  holding = true;
+  if(salvoQueue > 0 || shells.some(s=>s.salvo)) $('brace').style.display = 'block';
+  tryHit(p.x, p.y);
+}
+function up(){ holding = false; $('brace').style.display = 'none'; }
+cv.addEventListener('touchstart', down, {passive:false});
+cv.addEventListener('mousedown', down);
+window.addEventListener('touchend', up); window.addEventListener('mouseup', up);
+
+/* ================= positions ================= */
+function shellPos(s){
+  const k = s.t / s.dur;
+  const x = s.sx + (s.tx - s.sx) * k;
+  const midY = Math.min(s.sy, s.ty) - s.apex;
+  const y = (1-k)*(1-k)*s.sy + 2*(1-k)*k*midY + k*k*s.ty;
+  return {x, y, k};
+}
+function bargePos(b){
+  const k = b.t / b.dur;
+  return { x: b.x + (b.tx - b.x) * k + Math.sin(b.t*2)*4, y: b.y + (shoreY() - b.y) * k, k };
+}
+
+/* ================= particles ================= */
+function burst(x,y,col,n){
+  for(let i=0;i<n;i++){
+    const a = rnd(0,Math.PI*2), v = rnd(30,190);
+    parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:rnd(.3,.8),t:0,col,sz:rnd(1.5,4)});
+  }
+}
+
+/* ================= update ================= */
+function update(dt){
+  t += dt;
+  if(state === 'play'){
+    waveT += dt;
+    // spawns
+    if(wave.shellEvery && waveT > nextShell && waveT < wave.dur){ spawnShell(false); nextShell = waveT + wave.shellEvery * rnd(.7,1.3); }
+    if(wave.rocketEvery && waveT > nextRocket && waveT < wave.dur){ spawnRocket(); nextRocket = waveT + wave.rocketEvery * rnd(.7,1.3); }
+    while(wave._bargeTimes.length && waveT > wave._bargeTimes[0]){ wave._bargeTimes.shift(); spawnBarge(); }
+    // salvo
+    if(salvoTimes.length && waveT > salvoTimes[0]){
+      salvoTimes.shift(); salvoQueue = 4; salvoWarnT = 1.6;
+      $('salvo').style.display = 'block'; sAlarm();
+    }
+    if(salvoWarnT > 0){
+      salvoWarnT -= dt;
+      if(salvoWarnT <= 0){
+        $('salvo').style.display = 'none';
+        for(let i=0;i<salvoQueue;i++) setTimeout(()=>{ if(state==='play') spawnShell(true); }, i*350);
+        salvoQueue = 0;
+      }
+    }
+    // shells
+    for(let i=shells.length-1;i>=0;i--){
+      const s = shells[i]; s.t += dt;
+      if(s.t >= s.dur){
+        shells.splice(i,1);
+        burst(s.tx, s.ty, '#ff8c42', 30);
+        streak = 0;
+        damage(s.salvo ? (holding ? 3 : 9) : 12);
+        if(s.salvo && holding) popup(s.tx, s.ty-30, 'BRACED!', '#8fd0ff');
+      }
+    }
+    // rockets
+    for(let i=rockets.length-1;i>=0;i--){
+      const r = rockets[i]; r.t += dt;
+      const k = r.t / r.dur;
+      r.x = r.sx + (r.tx - r.sx) * k;
+      r.y = r.sy + (r.ty - r.sy) * k + Math.sin(k * Math.PI * r.wob) * 12;
+      parts.push({x:r.x - (r.tx>r.sx?8:-8), y:r.y, vx:rnd(-15,15), vy:rnd(-5,25), life:.35, t:0, col:'#ff7a3c', sz:2.5});
+      if(k >= 1){ rockets.splice(i,1); burst(r.tx,r.ty,'#ff5a3c',26); streak = 0; damage(8); }
+    }
+    // barges
+    for(let i=barges.length-1;i>=0;i--){
+      const b = barges[i]; b.t += dt; b.hit = Math.max(0, b.hit - dt);
+      if(b.t >= b.dur){
+        const p = bargePos(b);
+        barges.splice(i,1); burst(p.x,p.y,'#ffcf5a',30); streak = 0; damage(18);
+        popup(p.x, p.y-30, 'LANDED!', '#ff8080');
+      }
+    }
+    // wave end
+    if(waveT > wave.dur && !shells.length && !rockets.length && !barges.length && !salvoTimes.length && salvoQueue===0){
+      state = 'wavedone';
+      setTimeout(endWave, 600);
+    }
+  }
+  if(state === 'win') winT += dt;
+  // particles & popups
+  for(let i=parts.length-1;i>=0;i--){
+    const p = parts[i]; p.t += dt;
+    if(p.t > p.life){ parts.splice(i,1); continue; }
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 120*dt;
+  }
+  for(let i=pops.length-1;i>=0;i--){ pops[i].t += dt; if(pops[i].t > 1) pops.splice(i,1); }
+  shake = Math.max(0, shake - dt*22);
+  flash = Math.max(0, flash - dt);
+}
+
+/* ================= drawing ================= */
+const SKIES = {
+  morning: ['#5b83a8','#c9a06b','#e8c98f'],
+  day:     ['#6fa8d0','#9cc4e0','#cfe3ee'],
+  dusk:    ['#2e2a55','#8a4a5e','#e07840'],
+  night:   ['#070b1e','#101832','#1a2340'],
+  predawn: ['#141a38','#3a3358','#7a5064'],
+  dawn:    ['#33507a','#d98a5f','#f4d9a8']
+};
+function drawSky(kind){
+  const g = cx.createLinearGradient(0,0,0,horizon());
+  const c = SKIES[kind];
+  g.addColorStop(0,c[0]); g.addColorStop(.65,c[1]); g.addColorStop(1,c[2]);
+  cx.fillStyle = g; cx.fillRect(0,0,W,horizon());
+  if(kind==='night' || kind==='predawn'){
+    cx.fillStyle = 'rgba(255,255,255,.7)';
+    for(let i=0;i<40;i++){
+      const x = (i*97.3) % W, y = ((i*61.7) % (horizon()*0.8));
+      if(Math.sin(t*2+i) > -0.4) cx.fillRect(x, y, 1.6, 1.6);
+    }
+  }
+}
+function drawWater(kind){
+  const dark = (kind==='night'||kind==='predawn');
+  const g = cx.createLinearGradient(0,horizon(),0,shoreY());
+  g.addColorStop(0, dark ? '#0c1226' : '#3d6a8a');
+  g.addColorStop(1, dark ? '#111a30' : '#2c5170');
+  cx.fillStyle = g; cx.fillRect(0,horizon(),W,shoreY()-horizon());
+  cx.strokeStyle = dark ? 'rgba(150,180,220,.12)' : 'rgba(255,255,255,.18)';
+  cx.lineWidth = 1;
+  for(let i=0;i<7;i++){
+    const y = horizon() + 8 + i*(shoreY()-horizon())/7 + Math.sin(t*1.5+i)*2;
+    cx.beginPath(); cx.moveTo(0,y); cx.lineTo(W,y); cx.stroke();
+  }
+}
+function drawShips(kind){
+  const dark = (kind==='night'||kind==='predawn');
+  const names = ['Terror','Volcano','Meteor','Devastation','Aetna','Erebus'];
+  cx.save();
+  for(let i=0;i<6;i++){
+    const x = W*(0.08 + i*0.155) + Math.sin(t*.6+i)*2, y = horizon()-2;
+    cx.fillStyle = dark ? '#0a0e1c' : '#25303c';
+    cx.beginPath();
+    cx.moveTo(x-22,y); cx.lineTo(x+22,y); cx.lineTo(x+15,y+8); cx.lineTo(x-15,y+8); cx.closePath(); cx.fill();
+    cx.fillRect(x-2, y-18, 2.5, 18);
+    cx.fillRect(x-12, y-13, 2, 13);
+    cx.fillRect(x+9, y-11, 2, 11);
+    if(!dark || Math.random()<0.02){
+      cx.fillStyle = dark ? 'rgba(220,230,255,.5)' : 'rgba(215,225,235,.85)';
+      cx.font = '8px Georgia'; cx.textAlign = 'center';
+      cx.fillText(names[i], x, y+18);
+    }
+  }
+  cx.restore();
+}
+function drawFort(kind, bigFlag, flagK){
+  const dark = (kind==='night'||kind==='predawn');
+  const fy = fortY(), fw = W;
+  // shore
+  cx.fillStyle = dark ? '#141a24' : '#3a4a3c';
+  cx.fillRect(0, shoreY(), fw, H - shoreY());
+  // rampart silhouette (star-fort suggestion)
+  cx.fillStyle = dark ? '#0d1119' : '#2b2f33';
+  cx.beginPath();
+  cx.moveTo(0, H);
+  cx.lineTo(0, fy+18);
+  cx.lineTo(W*0.12, fy+18); cx.lineTo(W*0.18, fy); cx.lineTo(W*0.30, fy);
+  cx.lineTo(W*0.36, fy+14); cx.lineTo(W*0.46, fy+14);
+  cx.lineTo(W*0.50, fy-6);  cx.lineTo(W*0.54, fy+14);
+  cx.lineTo(W*0.64, fy+14); cx.lineTo(W*0.70, fy); cx.lineTo(W*0.82, fy);
+  cx.lineTo(W*0.88, fy+18); cx.lineTo(W, fy+18);
+  cx.lineTo(W, H); cx.closePath(); cx.fill();
+  // cannons
+  cx.fillStyle = dark ? '#080b12' : '#1c2024';
+  [0.24, 0.42, 0.60, 0.76].forEach(k=>{
+    cx.save(); cx.translate(W*k, fy+13); cx.rotate(-0.5);
+    cx.fillRect(0,-2.5,20,5); cx.restore();
+    cx.beginPath(); cx.arc(W*k, fy+15, 5, 0, 7); cx.fill();
+  });
+  // flagpole + flag
+  const px = W*0.5, pTop = fy - 6 - (bigFlag ? 96 : 54);
+  cx.strokeStyle = dark ? '#3c4250' : '#4a4438'; cx.lineWidth = 3;
+  cx.beginPath(); cx.moveTo(px, fy-4); cx.lineTo(px, pTop); cx.stroke();
+  const fw2 = bigFlag ? 92 : 44, fh2 = bigFlag ? 60 : 28;
+  const fyTop = bigFlag ? pTop + (1-flagK) * 80 : pTop;
+  drawFlag(px+2, fyTop, fw2, fh2, dark && !bigFlag);
+}
+function drawFlag(x, y, w, h, dim){
+  const wob = Math.sin(t*3)*2;
+  cx.save();
+  if(dim) cx.globalAlpha = 0.85;
+  for(let i=0;i<15;i++){
+    cx.fillStyle = (i%2===0) ? (dim?'#7d2733':'#b22234') : (dim?'#b8b2a4':'#f5ecd7');
+    cx.beginPath();
+    const sy = y + h*i/15, sh = h/15 + .5;
+    cx.moveTo(x, sy);
+    cx.lineTo(x+w, sy + wob);
+    cx.lineTo(x+w, sy + sh + wob);
+    cx.lineTo(x, sy + sh);
+    cx.closePath(); cx.fill();
+  }
+  cx.fillStyle = dim ? '#232a52' : '#3c3b6e';
+  cx.fillRect(x, y, w*0.42, h*8/15);
+  cx.fillStyle = dim ? '#c8c4b8' : '#fff';
+  const cw = w*0.42, ch = h*8/15;
+  for(let r=0;r<3;r++) for(let c=0;c<5;c++){
+    cx.beginPath();
+    cx.arc(x + cw*(c+1)/6, y + ch*(r+1)/4, Math.max(1.2, w/38), 0, 7);
+    cx.fill();
+  }
+  cx.restore();
+}
+function drawRain(){
+  cx.strokeStyle = 'rgba(160,190,230,.28)'; cx.lineWidth = 1;
+  cx.beginPath();
+  for(let i=0;i<60;i++){
+    const x = ((i*137 + t*520) % (W+40)) - 20;
+    const y = ((i*211 + t*760) % H);
+    cx.moveTo(x, y); cx.lineTo(x-3, y+13);
+  }
+  cx.stroke();
+}
+function drawProjectiles(){
+  // shells
+  shells.forEach(s=>{
+    const p = shellPos(s);
+    cx.save();
+    cx.fillStyle = s.salvo ? '#1a1a22' : '#26262e';
+    cx.strokeStyle = s.salvo ? '#ff4a4a' : '#ffb347';
+    cx.lineWidth = 2;
+    cx.beginPath(); cx.arc(p.x, p.y, s.r, 0, 7); cx.fill(); cx.stroke();
+    // sputtering fuse
+    cx.fillStyle = '#ffd76a';
+    cx.beginPath(); cx.arc(p.x + rnd(-2,2), p.y - s.r - rnd(1,5), rnd(1.5,3.2), 0, 7); cx.fill();
+    if(!s.salvo){
+      cx.strokeStyle = 'rgba(255,215,106,.35)'; cx.lineWidth = 1;
+      cx.beginPath(); cx.arc(p.x, p.y, s.r + 11 + Math.sin(t*6)*2, 0, 7); cx.stroke();
+    }
+    cx.restore();
+  });
+  // rockets
+  rockets.forEach(r=>{
+    cx.save();
+    const ang = Math.atan2(r.ty - r.sy, r.tx - r.sx);
+    cx.translate(r.x, r.y); cx.rotate(ang);
+    cx.fillStyle = '#3a2e28'; cx.fillRect(-10,-3,20,6);
+    cx.fillStyle = '#ff5a3c';
+    cx.beginPath(); cx.moveTo(10,-3); cx.lineTo(16,0); cx.lineTo(10,3); cx.closePath(); cx.fill();
+    cx.fillStyle = 'rgba(255,150,60,.9)';
+    cx.beginPath(); cx.arc(-12, 0, rnd(3,6), 0, 7); cx.fill();
+    cx.restore();
+  });
+  // barges
+  barges.forEach(b=>{
+    const p = bargePos(b);
+    cx.save(); cx.translate(p.x, p.y);
+    if(b.hit > 0){ cx.globalAlpha = .5 + Math.sin(t*40)*.5; }
+    cx.fillStyle = '#241d16';
+    cx.beginPath();
+    cx.moveTo(-26, 0); cx.lineTo(26, 0); cx.lineTo(18, 10); cx.lineTo(-18, 10); cx.closePath(); cx.fill();
+    cx.fillStyle = '#3a3026';
+    for(let i=-2;i<=2;i++){ cx.beginPath(); cx.arc(i*9, -3, 3.4, 0, 7); cx.fill(); }
+    cx.strokeStyle = '#4a3b2c'; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(-30,-6); cx.lineTo(-20,8); cx.moveTo(30,-6); cx.lineTo(20,8); cx.stroke();
+    // hp pips
+    cx.fillStyle = '#7fd0ff';
+    for(let i=0;i<b.hp;i++) cx.fillRect(-8 + i*10, -14, 6, 4);
+    cx.restore();
+  });
+  // particles
+  parts.forEach(p=>{
+    cx.globalAlpha = 1 - p.t/p.life;
+    cx.fillStyle = p.col;
+    cx.fillRect(p.x, p.y, p.sz, p.sz);
+  });
+  cx.globalAlpha = 1;
+  // score popups
+  pops.forEach(p=>{
+    cx.globalAlpha = 1 - p.t;
+    cx.fillStyle = p.col; cx.font = 'bold 16px Georgia'; cx.textAlign = 'center';
+    cx.fillText(p.txt, p.x, p.y - p.t*34);
+  });
+  cx.globalAlpha = 1;
+}
+
+function render(){
+  cx.save();
+  if(shake > 0) cx.translate(rnd(-shake,shake), rnd(-shake,shake));
+  const kind = state==='win' ? 'dawn' : (wave ? wave.sky : 'predawn');
+  drawSky(kind);
+  drawWater(kind);
+  if(state !== 'win') drawShips(kind);
+  const flagK = state==='win' ? Math.min(1, Math.max(0, (winT - 1) / 2.5)) : 0;
+  drawFort(kind, state==='win', flagK);
+  if(wave && wave.sky==='night' && state==='play') drawRain();
+  if(state==='play') drawProjectiles();
+  parts.length && state!=='play' && drawProjectiles();
+  if(state==='win' && winT > 3.4){
+    cx.fillStyle = 'rgba(255,243,214,.95)'; cx.font = 'italic ' + Math.min(24, W*0.05) + 'px Georgia';
+    cx.textAlign = 'center';
+    cx.fillText('Our flag was still there.', W/2, H*0.30);
+  }
+  cx.restore();
+  if(flash > 0){ cx.fillStyle = 'rgba(255,60,30,' + flash*0.5 + ')'; cx.fillRect(0,0,W,H); }
+}
+
+/* ================= loop ================= */
+function loop(ts){
+  const dt = Math.min(0.05, (ts - last)/1000 || 0.016);
+  last = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ================= buttons ================= */
+$('btnStart').addEventListener('click', ()=>{ audio(); $('ovTitle').classList.remove('show'); showFact(0); });
+$('btnWave').addEventListener('click', ()=>{ audio(); startWave(); });
+$('btnRetry').addEventListener('click', ()=>{
+  audio(); $('ovLose').classList.remove('show');
+  hp = Math.max(hp, 100); hp = 100; streak = 0;
+  startWave();
+});
+$('btnAgain').addEventListener('click', ()=>{
+  $('ovWin').classList.remove('show');
+  hp = 100; score = 0; streak = 0; intercepts = 0; wave = null;
+  $('hud').style.display = 'none'; $('hpwrap').style.display = 'none';
+  state = 'title'; $('ovTitle').classList.add('show');
+});
+</script>
+</body>
+</html>
